@@ -592,8 +592,7 @@ static int __devexit gpio_keys_remove(struct platform_device *pdev)
 	return 0;
 }
 
-
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int gpio_keys_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -635,12 +634,9 @@ static int gpio_keys_resume(struct device *dev)
 	input_sync(ddata->input);
 	return 0;
 }
-
-static const struct dev_pm_ops gpio_keys_pm_ops = {
-	.suspend	= gpio_keys_suspend,
-	.resume		= gpio_keys_resume,
-};
 #endif
+
+static SIMPLE_DEV_PM_OPS(gpio_keys_pm_ops, gpio_keys_suspend, gpio_keys_resume);
 
 static struct platform_driver gpio_keys_device_driver = {
 	.probe		= gpio_keys_probe,
@@ -648,9 +644,7 @@ static struct platform_driver gpio_keys_device_driver = {
 	.driver		= {
 		.name	= "gpio-keys",
 		.owner	= THIS_MODULE,
-#ifdef CONFIG_PM
 		.pm	= &gpio_keys_pm_ops,
-#endif
 	}
 };
 
