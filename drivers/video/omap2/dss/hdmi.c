@@ -120,6 +120,8 @@ static struct {
 	void (*hdmi_cec_enable_cb)(int status);
 	void (*hdmi_cec_irq_cb)(void);
 	void (*hdmi_cec_hpd)(int phy_addr, int status);
+
+	bool force_timings;
 } hdmi;
 
 static const u8 edid_header[8] = {0x0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0};
@@ -255,6 +257,7 @@ void hdmi_get_monspecs(struct fb_monspecs *specs)
 	int i, j;
 	char *edid = (char *) hdmi.edid;
 
+	pr_err("force_timings monspecs\n");
 	memset(specs, 0x0, sizeof(*specs));
 	if (!hdmi.edid_set)
 		return;
@@ -271,6 +274,16 @@ void hdmi_get_monspecs(struct fb_monspecs *specs)
 	hdmi.can_do_hdmi = specs->misc & FB_MISC_HDMI;
 
 	/* filter out resolutions we don't support */
+	if (hdmi.force_timings) {
+		for (i = 0; i < specs->modedb_len; i++) {
+			specs->modedb[i++] = hdmi.cfg.timings;
+			break;
+		}
+		specs->modedb_len = i;
+		hdmi.force_timings = false;
+		return;
+	}
+
 	for (i = j = 0; i < specs->modedb_len; i++) {
 		u32 max_pclk = hdmi.dssdev->clocks.hdmi.max_pixclk_khz;
 		if (!hdmi_set_timings(&specs->modedb[i], true))
@@ -816,7 +829,9 @@ int omapdss_hdmi_display_set_mode2(struct omap_dss_device *dssdev,
 				   int code, int mode)
 {
 	/* turn the hdmi off and on to get new timings to use */
+	hdmi.set_mode = true;
 	dssdev->driver->disable(dssdev);
+	hdmi.set_mode = false;
 	hdmi.cfg.timings = *vm;
 	hdmi.custom_set = 1;
 	hdmi.code = code;
@@ -878,6 +893,7 @@ static ssize_t hdmi_timings_store(struct device *dev,
 	u32 code, x, y, old_rate, new_rate = 0;
 	int mode = -1, pos = 0, pos2 = 0;
 	char hsync, vsync, ilace;
+	int hpd;
 
 	/* check for timings */
 	if (sscanf(buf, "%u,%u/%u/%u/%u,%u/%u/%u/%u,%c/%c%n",
@@ -958,7 +974,9 @@ static ssize_t hdmi_timings_store(struct device *dev,
 	if (!t.pixclock)
 		return -EINVAL;
 
-	if (new_rate || sscanf(buf + pos, ",%uHz\n", &new_rate) == 1) {
+	pos2 = 0;
+	if (new_rate || sscanf(buf + pos, ",%uHz%n", &new_rate, &pos2) == 1) {
+		pos += pos2;
 		u64 temp;
 		new_rate = RATE(new_rate) * 1000000 /
 					(1000 + ((new_rate % 6) == 5));
@@ -980,8 +998,18 @@ static ssize_t hdmi_timings_store(struct device *dev,
 			mode == HDMI_HDMI ? "CEA" : "VESA",
 			code);
 
-	return omapdss_hdmi_display_set_mode2(hdmi.dssdev, &t, code, mode) ?
-		: size;
+	hpd = !strncmp(buf + pos, "+hpd", 4);
+	if (hpd) {
+		hdmi.force_timings = true;
+		hdmi_panel_hpd_handler(0);
+		msleep(500);
+		omapdss_hdmi_display_set_mode2(hdmi.dssdev, &t, code, mode);
+		hdmi_panel_hpd_handler(1);
+	} else {
+		size = omapdss_hdmi_display_set_mode2(hdmi.dssdev, &t, code, mode) ?
+			: size;
+	}
+	return size;
 }
 
 DEVICE_ATTR(hdmi_timings, S_IRUGO | S_IWUSR, hdmi_timings_show,
@@ -1026,6 +1054,7 @@ int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 	}
 
 	r = hdmi_power_on(dssdev);
+
 	if (r) {
 		DSSERR("failed to power on device\n");
 		goto err4;
