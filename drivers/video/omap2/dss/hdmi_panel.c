@@ -167,13 +167,13 @@ static DEVICE_ATTR(deepcolor, S_IRUGO | S_IWUSR, hdmi_deepcolor_show,
 static DEVICE_ATTR(audio_channels, S_IRUGO, hdmi_audio_max_channel_show,
 							NULL);
 
-
 static struct attribute *hdmi_panel_attrs[] = {
 	&dev_attr_s3d_enable.attr,
 	&dev_attr_s3d_type.attr,
 	&dev_attr_edid.attr,
 	&dev_attr_deepcolor.attr,
 	&dev_attr_audio_channels.attr,
+	&dev_attr_hdmi_timings,
 	NULL,
 };
 
