@@ -1025,6 +1025,21 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 				(edid[pos + 2] << 16);
 			if (ieee_reg == 0x000c03)
 				specs->misc |= FB_MISC_HDMI;
+			if (len >= 6) {
+				u32 deep_color = (edid[pos + 6] & 0x70) >> 4;
+
+				switch (deep_color) {
+				case 1:
+					specs->misc |= FB_MISC_DC_30;
+					break;
+				case 2:
+					specs->misc |= FB_MISC_DC_36;
+					break;
+				case 4:
+					specs->misc |= FB_MISC_DC_48;
+					break;
+				}
+			}
 		}
 
 		pos += len;

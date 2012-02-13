@@ -444,6 +444,9 @@ struct file;
 #define FB_MISC_PRIM_COLOR	1
 #define FB_MISC_1ST_DETAIL	2	/* First Detailed Timing is preferred */
 #define FB_MISC_HDMI		4	/* display supports HDMI signaling */
+#define FB_MISC_DC_30		8	/* display supports deep color 30bit */
+#define FB_MISC_DC_36		16	/* display supports deep color 36bit*/
+#define FB_MISC_DC_48		32	/* display supports deep color 48bit*/
 
 struct fb_chroma {
 	__u32 redx;	/* in fraction of 1024 */
