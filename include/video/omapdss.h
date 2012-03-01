@@ -49,6 +49,8 @@
 #define DISPC_IRQ_FRAMEDONE_WB		(1 << 23)
 #define DISPC_IRQ_FRAMEDONETV		(1 << 24)
 #define DISPC_IRQ_WBINCOMPLETE		(1 << 26)
+#define HDMI_EDID_AD_MAX_LENGTH		10
+#define HDMI_EDID_AUDIO_LPCM		1
 
 struct omap_dss_device;
 struct omap_overlay_manager;
@@ -231,6 +233,18 @@ struct rfbi_timings {
 	u32 tim[5];             /* set by rfbi_convert_timings() */
 
 	int converted;
+};
+
+struct hdmi_audio_descriptor {
+	u8 num_of_ch;
+	u8 format;
+	u8 rates;
+	u8 bit_rate;
+};
+
+struct hdmi_audio_edid {
+	int length;
+	struct hdmi_audio_descriptor ad[HDMI_EDID_AD_MAX_LENGTH];
 };
 
 void omap_rfbi_write_command(const void *buf, u32 len);
@@ -920,5 +934,5 @@ static inline void dss_ovl_cb(struct omapdss_ovl_cb *cb, int id, int status)
 	if (!cb->mask)
 		cb->fn = NULL;
 }
-
+void omapdss_hdmi_get_audio_descriptors(struct hdmi_audio_edid *audio_db);
 #endif

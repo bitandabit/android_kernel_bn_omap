@@ -39,6 +39,7 @@
 #include <linux/gpio.h>
 #include <linux/fb.h>
 #include <linux/omapfb.h>
+#include <sound/pcm.h>
 
 #include "dss.h"
 #include "dss_features.h"
@@ -64,9 +65,25 @@ static bool pm_qos_handle_added;
 #define EDID_SIZE_BLOCK0_TIMING_DESCRIPTOR	4
 #define EDID_SIZE_BLOCK1_TIMING_DESCRIPTOR	4
 
+/* HDMI EDID Extension Data Block Tags  */
+#define HDMI_EDID_EX_DATABLOCK_TAG_MASK		0xE0
+#define HDMI_EDID_EX_DATABLOCK_LEN_MASK		0x1F
+/* HDMI EDID Audio */
+#define HDMI_EDID_AUDIO_FORMAT_MASK		0x78
+#define HDMI_EDID_AUDIO_FORMAT_SHIFT		3
+#define HDMI_EDID_AUDIO_CHANNELS_MASK		0x07
+#define HDMI_EDID_AUDIO_RATES_MASK		0x7F
+
 #define OMAP_HDMI_TIMINGS_NB			34
 #define HDMI_DEFAULT_REGN 15
 #define HDMI_DEFAULT_REGM2 1
+
+enum extension_edid_db {
+	DATABLOCK_AUDIO = 1,
+	DATABLOCK_VIDEO = 2,
+	DATABLOCK_VENDOR = 3,
+	DATABLOCK_SPEAKERS = 4,
+};
 
 static struct {
 	struct mutex lock;
@@ -581,6 +598,88 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_set_l3_cstr(dssdev, false);
 	hdmi_runtime_put();
 	hdmi.deep_color = HDMI_DEEP_COLOR_24BIT;
+}
+
+static int hdmi_get_datablock_offset(u8 *edid, enum extension_edid_db datablock,
+					unsigned int *offset)
+{
+	u8 current_byte, disp;
+	unsigned int i = 0, length = 0;
+
+	if (edid[0x7e] == 0x00)
+		return 1;
+
+	disp = edid[EDID_DESCRIPTOR_BLOCK1_ADDRESS + 2];
+	DSSDBG("Extension block present db %d %x\n", datablock, disp);
+	if (disp == 0x4)
+		return 1;
+
+	i = EDID_DESCRIPTOR_BLOCK1_ADDRESS + 0x4;
+
+	while (i < (EDID_DESCRIPTOR_BLOCK1_ADDRESS + disp)) {
+		current_byte = edid[i];
+		DSSDBG("i = %x, cur_byte = %x,"
+			"(cur_byte & EX_DATABLOCK_TAG_MASK) = %d\n",
+			i, current_byte,
+			(current_byte & HDMI_EDID_EX_DATABLOCK_TAG_MASK));
+		if ((current_byte >> 5) == datablock) {
+			*offset = i;
+			DSSDBG("datablock %d, offset = %d\n",
+							datablock, *offset);
+			return 0;
+		} else {
+			length = (current_byte &
+					HDMI_EDID_EX_DATABLOCK_LEN_MASK) + 1;
+			i += length;
+		}
+	}
+	return 1;
+}
+
+void omapdss_hdmi_get_audio_descriptors(struct hdmi_audio_edid *audio_db)
+{
+	unsigned int offset;
+	int j = 0, length = 0;
+	enum extension_edid_db vsdb =  DATABLOCK_AUDIO;
+	struct hdmi_audio_descriptor *ad = audio_db->ad;
+	u8 *edid = hdmi.edid;
+
+	audio_db->length = 0;
+	memset(ad, 0, sizeof(ad));
+
+	if (!hdmi.enabled)
+		return;
+
+	if (!hdmi_get_datablock_offset(edid, vsdb, &offset)) {
+		length = (edid[offset] & HDMI_EDID_EX_DATABLOCK_LEN_MASK) / 3;
+
+		if (length >= HDMI_EDID_AD_MAX_LENGTH)
+			audio_db->length = HDMI_EDID_AD_MAX_LENGTH;
+		else
+			audio_db->length = length;
+		offset++;
+		for (j = 0; j < length ; j++) {
+			ad[j].format = (edid[offset + j * 3] &
+				HDMI_EDID_AUDIO_FORMAT_MASK)
+				>> HDMI_EDID_AUDIO_FORMAT_SHIFT;
+			ad[j].num_of_ch = (edid[offset + j * 3] &
+				HDMI_EDID_AUDIO_CHANNELS_MASK) + 1;
+			ad[j].rates = (edid[offset + j * 3 + 1] &
+				HDMI_EDID_AUDIO_RATES_MASK);
+			ad[j].bit_rate = edid[offset + j * 3 + 2];
+
+
+			DSSDBG("AD[%d]: format: %s (code= %02d), nchannels= %d,"
+			    " rates= 0x%02x, bit_rate= 0x%02x\n", j,
+			    (audio_db->ad[j].format ==
+			    HDMI_EDID_AUDIO_LPCM ? "LPCM" : "Compressed"),
+			    audio_db->ad[j].format,
+			    audio_db->ad[j].num_of_ch,
+			    audio_db->ad[j].rates,
+			    audio_db->ad[j].bit_rate);
+
+		}
+	}
 }
 
 int omapdss_hdmi_get_pixel_clock(void)
