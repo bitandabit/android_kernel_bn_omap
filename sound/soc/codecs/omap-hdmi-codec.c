@@ -71,8 +71,24 @@ struct hdmi_codec_data {
 	struct delayed_work delayed_work;
 	struct workqueue_struct *workqueue;
 	struct hdmi_audio_edid audio_db;
+	struct snd_pcm_hw_constraint_list channel_constraint;
 	int active;
 } hdmi_data;
+
+static unsigned int stereo[] = {
+	2,
+};
+
+static unsigned int stereo_6[] = {
+	2,
+	6,
+};
+
+static unsigned int stereo_6_8[] = {
+	2,
+	6,
+	8,
+};
 
 int hdmi_audio_get_max_channels(void)
 {
@@ -89,10 +105,34 @@ int hdmi_audio_get_max_channels(void)
 	return num_channels;
 }
 
+static void hdmi_audio_set_channel_constraint(struct hdmi_codec_data *data)
+{
+	struct snd_pcm_hw_constraint_list *channel_constraint =
+					&data->channel_constraint;
+	int channel_count = hdmi_audio_get_max_channels();
+
+	switch (channel_count) {
+	case 8:
+		channel_constraint->count = ARRAY_SIZE(stereo_6_8);
+		channel_constraint->list = stereo_6_8;
+		break;
+	case 6:
+		channel_constraint->count = ARRAY_SIZE(stereo_6);
+		channel_constraint->list = stereo_6;
+		break;
+	case 2:
+	default:
+		channel_constraint->count = ARRAY_SIZE(stereo);
+		channel_constraint->list = stereo;
+		break;
+	}
+}
+
 /* Read short audio descriptors contained in EDID audio data block */
 void hdmi_audio_update_edid_info(void)
 {
 	omapdss_hdmi_get_audio_descriptors(&hdmi_data.audio_db);
+	hdmi_audio_set_channel_constraint(&hdmi_data);
 }
 
 static int hdmi_audio_set_configuration(struct hdmi_codec_data *priv)
@@ -381,10 +421,19 @@ static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 static int hdmi_audio_startup(struct snd_pcm_substream *substream,
 				  struct snd_soc_dai *dai)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_codec *codec = rtd->codec;
+	struct hdmi_codec_data *priv = snd_soc_codec_get_drvdata(codec);
+
 	if (!omapdss_hdmi_get_mode()) {
 		pr_err("Current video settings do not support audio.\n");
 		return -EIO;
 	}
+
+	snd_pcm_hw_constraint_list(substream->runtime, 0,
+				SNDRV_PCM_HW_PARAM_CHANNELS,
+				&priv->channel_constraint);
+
 	return 0;
 }
 static int hdmi_probe(struct snd_soc_codec *codec)
