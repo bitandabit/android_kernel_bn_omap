@@ -37,6 +37,14 @@ static struct {
 	struct switch_dev hpd_switch;
 } hdmi;
 
+static ssize_t hdmi_audio_max_channel_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int r;
+	r = hdmi_audio_get_max_channels();
+	return snprintf(buf, PAGE_SIZE, "%d\n", r);
+}
+
 static ssize_t hdmi_deepcolor_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -156,12 +164,16 @@ static DEVICE_ATTR(s3d_type, S_IRUGO | S_IWUSR, hdmi_s3d_mode_show,
 static DEVICE_ATTR(edid, S_IRUGO, hdmi_edid_show, NULL);
 static DEVICE_ATTR(deepcolor, S_IRUGO | S_IWUSR, hdmi_deepcolor_show,
 							hdmi_deepcolor_store);
+static DEVICE_ATTR(audio_channels, S_IRUGO, hdmi_audio_max_channel_show,
+							NULL);
+
 
 static struct attribute *hdmi_panel_attrs[] = {
 	&dev_attr_s3d_enable.attr,
 	&dev_attr_s3d_type.attr,
 	&dev_attr_edid.attr,
 	&dev_attr_deepcolor.attr,
+	&dev_attr_audio_channels.attr,
 	NULL,
 };
 
