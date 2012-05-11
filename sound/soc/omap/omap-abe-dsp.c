@@ -68,6 +68,9 @@
 #define OMAP_ABE_HS_DC_OFFSET_STEP	(1800 / 8)
 #define OMAP_ABE_HF_DC_OFFSET_STEP	(4600 / 8)
 
+#define DBG_FMT(x) x
+#define DBG(msg) printk(KERN_DEBUG DBG_FMT(msg))
+
 #ifdef CONFIG_OMAP4_DPLL_CASCADING
 #define ABE_FE_START           (ABE_NUM_MIXERS + ABE_NUM_MUXES)
 #define ABE_NUM_FE             10
@@ -2659,6 +2662,10 @@ static int abe_suspend(struct snd_soc_dai *dai)
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
 		__func__, dai->name, dai->active);
+        if (!dai->active) {
+            DBG("call abe_disable_irq()\n");
+	    abe_disable_irq();
+	 }
 
 	if (!dai->active)
 		return 0;
@@ -2713,7 +2720,10 @@ static int abe_resume(struct snd_soc_dai *dai)
 
 	dev_dbg(dai->dev, "%s: %s active %d\n",
 		__func__, dai->name, dai->active);
-
+        if (!dai->active) {
+            DBG("call abe_disable_irq()\n");
+	    abe_wakeup();
+	 }
 	if (!dai->active)
 		return 0;
 
@@ -2918,6 +2928,19 @@ static int abe_probe(struct snd_soc_platform *platform)
 				abe->irq, ret);
 		goto err_irq;
 	}
+
+	//Ti Patch   by  cliff.lee@ti.com
+
+           /*
+           * Even if we fail to make the irq  wakeup capable, we are at risk only
+           * while going to suspend where the device is cooler, we might lose a
+           * bit of power due to pending interrupt preventing core from hitting
+           * low power state but we can continue to handle events in active use
+           * cases. So don't free interrupt on failure of marking wakeup capable,
+           * just warn and continue.
+           */
+           if (enable_irq_wake(abe->irq))
+                     pr_err("%s: Failed: wakeupen abe IRQ%d\n", __func__, abe->irq);
 
 	/* query supported opps */
 	rcu_read_lock();
