@@ -173,6 +173,13 @@ void __init omap44xx_voltagedomains_init(void)
 		omap4_vdd_core_info.volt_data = omap447x_vdd_core_volt_data;
 		omap4_vdd_mpu_info.dep_vdd_info = omap447x_vddmpu_dep_info;
 		omap4_vdd_iva_info.dep_vdd_info = omap447x_vddiva_dep_info;
+
+		omap4_voltdm_mpu.vp->vlimits->vddmin =
+					OMAP4470_VP_MPU_VLIMITTO_VDDMIN;
+		omap4_voltdm_iva.vp->vlimits->vddmin =
+					OMAP4470_VP_IVA_VLIMITTO_VDDMIN;
+		omap4_voltdm_core.vp->vlimits->vddmin =
+					OMAP4470_VP_CORE_VLIMITTO_VDDMIN;
 		omap4_voltdm_mpu.vp->vlimits->vddmax =
 					OMAP4470_VP_MPU_VLIMITTO_VDDMAX;
 		omap4_voltdm_iva.vp->vlimits->vddmax =
