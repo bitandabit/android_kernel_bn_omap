@@ -272,8 +272,35 @@ static struct omap_voltdm_pmic omap3_core_pmic = {
 	.uv_to_vsel		= twl4030_uv_to_vsel,
 };
 
-static struct omap_voltdm_pmic omap443x_447x_mpu_pmic = {
+static struct omap_voltdm_pmic omap443x_mpu_pmic = {
 	.slew_rate		= 9000,
+	.step_size		= 12660,
+	.on_volt		= 1387000,
+	.onlp_volt		= 1387000,
+	.ret_volt		= 750000,
+	.off_volt		= 0,
+	.volt_setup_time	= 0,
+	.switch_on_time		= 549,
+	.vp_erroroffset		= OMAP4_VP_CONFIG_ERROROFFSET,
+	.vp_vstepmin		= OMAP4_VP_VSTEPMIN_VSTEPMIN,
+	.vp_vstepmax		= OMAP4_VP_VSTEPMAX_VSTEPMAX,
+	.min_volt		= 709000,
+	.max_volt		= 1418000,
+	.vp_timeout_us		= OMAP4_VP_VLIMITTO_TIMEOUT_US,
+	.i2c_slave_addr		= TWL6030_SRI2C_SLAVE_ADDR,
+	.volt_reg_addr		= TWL6030_VCORE1_SR_VOLT_REG,
+	.cmd_reg_addr		= TWL6030_VCORE1_SR_CMD_REG,
+	.i2c_high_speed		= true,
+	.i2c_scll_low		= 0x28,
+	.i2c_scll_high		= 0x2C,
+	.i2c_hscll_low		= 0x0B,
+	.i2c_hscll_high		= 0x00,
+	.vsel_to_uv		= twl6030_vsel_to_uv,
+	.uv_to_vsel		= twl6030_uv_to_vsel,
+};
+
+static struct omap_voltdm_pmic omap447x_mpu_pmic = {
+	.slew_rate		= 12794,
 	.step_size		= 12660,
 	.on_volt		= 1387000,
 	.onlp_volt		= 1387000,
@@ -327,7 +354,7 @@ static struct omap_voltdm_pmic omap443x_446x_iva_pmic = {
 };
 
 static struct omap_voltdm_pmic omap447x_iva_pmic = {
-	.slew_rate		= 9000,
+	.slew_rate		= 12794,
 	.step_size		= 12660,
 	.on_volt		= 1380000,
 	.onlp_volt		= 1380000,
@@ -410,7 +437,7 @@ static struct omap_voltdm_pmic omap446x_core_pmic = {
 };
 
 static struct omap_voltdm_pmic omap447x_core_pmic = {
-	.slew_rate		= 9000,
+	.slew_rate		= 12794,
 	.step_size		= 12660,
 	.on_volt		= 1190000,
 	.onlp_volt		= 1190000,
@@ -612,9 +639,14 @@ static __initdata struct omap_pmic_map omap_twl_map[] = {
 	},
 	{
 		.name = "mpu",
-		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP443X |
-						CHIP_IS_OMAP447X),
-		.pmic_data = &omap443x_447x_mpu_pmic,
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP443X),
+		.pmic_data = &omap443x_mpu_pmic,
+		.special_action = twl6030_set_offset,
+	},
+	{
+		.name = "mpu",
+		.omap_chip = OMAP_CHIP_INIT(CHIP_IS_OMAP447X),
+		.pmic_data = &omap447x_mpu_pmic,
 		.special_action = twl6030_set_offset,
 	},
 	{
