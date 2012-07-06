@@ -115,6 +115,11 @@ void __init omap_vp_init(struct voltagedomain *voltdm)
 		(vddmin << vp->common->vlimitto_vddmin_shift) |
 		(timeout <<  vp->common->vlimitto_timeout_shift);
 	voltdm->write(val, vp->vlimitto);
+
+	if (cpu_is_omap447x()) {
+		val = VP_VOLTAGE_FORCEUPDATEWAIT << VP_VOLTAGE_FORCEUPDATEWAIT_OFFSET;
+		voltdm->write(val, vp->voltage);
+	}
 }
 
 /**

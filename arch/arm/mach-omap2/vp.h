@@ -24,6 +24,8 @@ struct voltagedomain;
 /* XXX document */
 #define VP_IDLE_TIMEOUT		500
 #define VP_TRANXDONE_TIMEOUT	300
+#define VP_VOLTAGE_FORCEUPDATEWAIT	0x509
+#define VP_VOLTAGE_FORCEUPDATEWAIT_OFFSET	8
 
 /**
  * struct omap_vp_ops - per-VP operations
