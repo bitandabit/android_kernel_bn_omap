@@ -2959,6 +2959,7 @@ static void _enable_digit_out(bool enable)
 static void dispc_enable_digit_out(enum omap_display_type type, bool enable)
 {
 	struct completion frame_done_completion;
+	struct completion wb_done_completion;
 	int r;
 
 	if (REG_GET(DISPC_CONTROL, 1, 1) == enable)
@@ -2979,14 +2980,24 @@ static void dispc_enable_digit_out(enum omap_display_type type, bool enable)
 	 * prevents DSS from going to OFF mode. And when enabling, we need to
 	 * wait for the extra sync losts */
 	init_completion(&frame_done_completion);
+	init_completion(&wb_done_completion);
 
+	omap_dispc_register_isr(dispc_disable_isr, &wb_done_completion,
+				DISPC_IRQ_FRAMEDONE_WB);
 	r = omap_dispc_register_isr(dispc_disable_isr, &frame_done_completion,
 			DISPC_IRQ_EVSYNC_EVEN | DISPC_IRQ_EVSYNC_ODD
 						| DISPC_IRQ_FRAMEDONETV);
 	if (r)
 		DSSERR("failed to register EVSYNC isr\n");
 
+	if (!wait_for_completion_timeout(&wb_done_completion,
+				msecs_to_jiffies(50)))
+		DSSERR("timeout waiting for WB_DONE\n");
+
 	_enable_digit_out(enable);
+
+	r = omap_dispc_unregister_isr(dispc_disable_isr,
+			&wb_done_completion, DISPC_IRQ_FRAMEDONE_WB);
 
 	/* XXX I understand from TRM that we should only wait for the
 	 * current field to complete. But it seems we have to wait
