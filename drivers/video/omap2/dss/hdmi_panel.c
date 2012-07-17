@@ -30,6 +30,7 @@
 #include "dss.h"
 
 #include <video/hdmi_ti_4xxx_ip.h>
+#include <sound/omap-hdmi-codec.h>
 
 static struct {
 	struct mutex hdmi_lock;
@@ -313,6 +314,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 			mutex_unlock(&hdmi.hdmi_lock);
 			dssdev->driver->disable(dssdev);
 			omapdss_hdmi_enable_s3d(false);
+			hdmi_audio_update_edid_info();
 			mutex_lock(&hdmi.hdmi_lock);
 		}
 		goto done;
@@ -336,6 +338,7 @@ static void hdmi_hotplug_detect_worker(struct work_struct *work)
 			dssdev->panel.height_in_um =
 					dssdev->panel.monspecs.max_y * 10000;
 			hdmi_inform_hpd_to_cec(true);
+			hdmi_audio_update_edid_info();
 			switch_set_state(&hdmi.hpd_switch, 1);
 			goto done;
 		} else if (state == HPD_STATE_EDID_TRYLAST){

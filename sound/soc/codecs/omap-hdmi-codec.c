@@ -34,6 +34,7 @@
 #include <sound/soc.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
+#include <sound/omap-hdmi-codec.h>
 
 #include <plat/omap_hwmod.h>
 #include <video/omapdss.h>
@@ -69,9 +70,30 @@ struct hdmi_codec_data {
 	struct hdmi_params params;
 	struct delayed_work delayed_work;
 	struct workqueue_struct *workqueue;
+	struct hdmi_audio_edid audio_db;
 	int active;
 } hdmi_data;
 
+int hdmi_audio_get_max_channels(void)
+{
+	int i, num_channels;
+	struct hdmi_audio_edid *audio_db = &hdmi_data.audio_db;
+
+	for (i = 0, num_channels = 0; i < audio_db->length; i++) {
+		if (audio_db->ad[i].format != HDMI_EDID_AUDIO_LPCM)
+			continue;
+		if (audio_db->ad[i].num_of_ch > num_channels)
+			num_channels = audio_db->ad[i].num_of_ch;
+	}
+	pr_debug("Maximum audio channels available %d\n", num_channels);
+	return num_channels;
+}
+
+/* Read short audio descriptors contained in EDID audio data block */
+void hdmi_audio_update_edid_info(void)
+{
+	omapdss_hdmi_get_audio_descriptors(&hdmi_data.audio_db);
+}
 
 static int hdmi_audio_set_configuration(struct hdmi_codec_data *priv)
 {
