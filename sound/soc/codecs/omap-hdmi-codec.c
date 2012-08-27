@@ -272,6 +272,18 @@ int hdmi_audio_notifier_callback(struct notifier_block *nb,
 		}
 	} else {
 		cancel_delayed_work(&hdmi_data.delayed_work);
+
+		if (hdmi_data.active) {
+			/* disable audio before hdmi power off */
+			hdmi_ti_4xxx_audio_transfer_en(&hdmi_data.ip_data, 0);
+			hdmi_ti_4xxx_wp_audio_enable(&hdmi_data.ip_data, 0);
+			/*
+			 * switch back to smart-idle & wakeup capable
+			 * after audio activity stops
+			 */
+			omap_hwmod_set_slave_idlemode(hdmi_data.oh,
+					HWMOD_IDLEMODE_SMART_WKUP);
+		}
 	}
 	return 0;
 }
