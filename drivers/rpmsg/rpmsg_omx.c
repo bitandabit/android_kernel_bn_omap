@@ -58,11 +58,6 @@ enum rpc_omx_map_info_type {
 	RPC_OMX_MAP_INFO_MAX           = 0x7FFFFFFF
 };
 
-enum {
-	OMX_SERVICE_DOWN,
-	OMX_SERVICE_UP
-};
-
 struct rpmsg_omx_service {
 	struct cdev cdev;
 	struct device *dev;
@@ -71,7 +66,6 @@ struct rpmsg_omx_service {
 	struct list_head list;
 	struct mutex lock;
 	struct completion comp;
-	int state;
 #ifdef CONFIG_ION_OMAP
 	struct ion_client *ion_client;
 #endif
@@ -582,7 +576,7 @@ static int rpmsg_omx_open(struct inode *inode, struct file *filp)
 
 	omxserv = container_of(inode->i_cdev, struct rpmsg_omx_service, cdev);
 
-	if (omxserv->state == OMX_SERVICE_DOWN)
+	if (!omxserv->rpdev)
 		if (filp->f_flags & O_NONBLOCK ||
 			      wait_for_completion_interruptible(&omxserv->comp))
 			return -EBUSY;
@@ -894,7 +888,6 @@ static int rpmsg_omx_probe(struct rpmsg_channel *rpdev)
 serv_up:
 	omxserv->rpdev = rpdev;
 	omxserv->minor = minor;
-	omxserv->state = OMX_SERVICE_UP;
 	dev_set_drvdata(&rpdev->dev, omxserv);
 	complete_all(&omxserv->comp);
 
@@ -939,7 +932,6 @@ static void __devexit rpmsg_omx_remove(struct rpmsg_channel *rpdev)
 	}
 	/* If it is a recovery, don't clean the omxserv */
 	init_completion(&omxserv->comp);
-	omxserv->state = OMX_SERVICE_DOWN;
 	list_for_each_entry(omx, &omxserv->list, next) {
 		/* set omx instance to fail state */
 		omx->state = OMX_FAIL;
@@ -947,6 +939,7 @@ static void __devexit rpmsg_omx_remove(struct rpmsg_channel *rpdev)
 		complete_all(&omx->reply_arrived);
 		wake_up_interruptible(&omx->readq);
 	}
+	omxserv->rpdev = NULL;
 	mutex_unlock(&omxserv->lock);
 }
 
