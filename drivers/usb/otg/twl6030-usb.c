@@ -194,6 +194,40 @@ static int twl6030_phy_suspend(struct otg_transceiver *x, int suspend)
 	return 0;
 }
 
+static int twl6030_charger_detect_start(struct twl6030_usb *twl)
+{
+	struct device *dev = twl->dev;
+	struct twl4030_usb_data *pdata = dev->platform_data;
+
+	pdata->charger_detect_start();
+	return 0;
+}
+
+static int twl6030_charger_detect_stop(struct twl6030_usb *twl)
+{
+	struct device *dev = twl->dev;
+	struct twl4030_usb_data *pdata = dev->platform_data;
+
+	pdata->charger_detect_stop();
+	return 0;
+}
+
+static int twl6030_charger_detect_status(struct twl6030_usb *twl)
+{
+	struct device *dev = twl->dev;
+	struct twl4030_usb_data *pdata = dev->platform_data;
+
+	return pdata->charger_detect_status();
+}
+
+static int twl6030_charger_detected(struct twl6030_usb *twl)
+{
+	struct device *dev = twl->dev;
+	struct twl4030_usb_data *pdata = dev->platform_data;
+
+	return pdata->charger_detected();
+}
+
 static int twl6030_start_srp(struct otg_transceiver *x)
 {
 	struct twl6030_usb *twl = xceiv_to_twl(x);
@@ -276,14 +310,28 @@ int twl6030_usbotg_get_status()
 	return twl6030_status;
 };
 
+static void twl6030_set_reg(struct twl6030_usb *twl, u8 module,
+					u8 data, u8 address)
+{
+	u8 tdata = twl6030_readb(twl, module, address) | data;
+	twl6030_writeb(twl, module, tdata, address);
+}
+
+static void twl6030_unset_reg(struct twl6030_usb *twl, u8 module,
+					u8 data, u8 address)
+{
+	u8 tdata = twl6030_readb(twl, module, address) & (~data);
+	twl6030_writeb(twl, module, tdata, address);
+}
+
 static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 {
 	struct twl6030_usb *twl = _twl;
 	int status;
-	u8 vbus_state, hw_state, misc2_data;
+	u8 vbus_state, hw_state;
 	unsigned charger_type;
 
-	hw_state = twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
+	hw_state   = twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
 
 	vbus_state = twl6030_readb(twl, TWL_MODULE_MAIN_CHARGE,
 						CONTROLLER_STAT1);
@@ -295,12 +343,7 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 
 	if ((vbus_state) && !(hw_state & STS_USB_ID)) {
 		/* Program MISC2 register and set bit VUSB_IN_VBAT */
-		misc2_data = twl6030_readb(twl, TWL6030_MODULE_ID0,
-						TWL6030_MISC2);
-		misc2_data |= 0x10;
-		twl6030_writeb(twl, TWL6030_MODULE_ID0, misc2_data,
-						TWL6030_MISC2);
-
+		twl6030_set_reg(twl, TWL6030_MODULE_ID0, 0x10, TWL6030_MISC2);
 		regulator_enable(twl->usb3v3);
 		twl6030_phy_suspend(&twl->otg, 0);
 		charger_type = omap4_charger_detect();
@@ -343,10 +386,7 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 			regulator_disable(twl->usb3v3);
 			twl->asleep = 0;
 			/* Program MISC2 register and clear bit VUSB_IN_VBAT */
-			misc2_data = twl6030_readb(twl, TWL6030_MODULE_ID0,
-							TWL6030_MISC2);
-			misc2_data &= 0xEF;
-			twl6030_writeb(twl, TWL6030_MODULE_ID0, misc2_data,
+			twl6030_unset_reg(twl, TWL6030_MODULE_ID0, 0x10,
 							TWL6030_MISC2);
 		}
 	}
@@ -363,20 +403,15 @@ static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
 #ifndef CONFIG_USB_MUSB_PERIPHERAL
 	struct twl6030_usb *twl = _twl;
 	int status = USB_EVENT_NONE;
-	u8 hw_state, misc2_data;
+	u8 hw_state;
 
 	hw_state = twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
 
 	if (hw_state & STS_USB_ID) {
 		if (twl->otg.state != OTG_STATE_A_IDLE) {
 			/* Program MISC2 register and set bit VUSB_IN_VBAT */
-			misc2_data = twl6030_readb(twl, TWL6030_MODULE_ID0,
+			twl6030_set_reg(twl, TWL6030_MODULE_ID0, 0x10,
 							TWL6030_MISC2);
-
-			misc2_data |= 0x10;
-			twl6030_writeb(twl, TWL6030_MODULE_ID0, misc2_data,
-							TWL6030_MISC2);
-
 			regulator_enable(twl->usb3v3);
 			twl->asleep = 1;
 			twl6030_writeb(twl, TWL_MODULE_USB, 0x1,
@@ -567,7 +602,7 @@ static int __devinit twl6030_usb_probe(struct platform_device *pdev)
 	twl->otg.set_vbus	= twl6030_set_vbus;
 	twl->otg.set_hz_mode	= twl6030_set_hz_mode;
 	twl->otg.init		= twl6030_phy_init;
-	twl->otg.set_power    = twl6030_set_power;
+	twl->otg.set_power	= twl6030_set_power;
 	twl->otg.shutdown	= twl6030_phy_shutdown;
 	twl->otg.set_suspend	= twl6030_phy_suspend;
 	twl->otg.start_srp	= twl6030_start_srp;
