@@ -74,6 +74,7 @@
 /* In module TWL6030_MODULE_PM_MASTER */
 #define STS_HW_CONDITIONS		0x21
 #define STS_USB_ID			BIT(2)
+#define STS_PLUG_DET			BIT(3)
 
 /* In module TWL6030_MODULE_PM_RECEIVER */
 #define VUSB_CFG_TRANS			0x71

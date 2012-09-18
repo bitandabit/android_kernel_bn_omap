@@ -44,11 +44,16 @@
 #define	IDDIG				BIT(4)
 
 #define CONTROL_USB2PHYCORE		0x620
+#define CHARGER_TYPE_WAIT		0x0
+#define CHARGER_TYPE_NO_CONTACT		0x1
 #define CHARGER_TYPE_PS2		0x2
+#define CHARGER_TYPE_UNKOWN_ERR		0x3
 #define CHARGER_TYPE_DEDICATED		0x4
 #define CHARGER_TYPE_HOST		0x5
 #define CHARGER_TYPE_PC			0x6
+#define CHARGER_TYPE_INTERRUPT		0x7
 #define USB2PHY_CHGDETECTED		BIT(13)
+#define USB2PHY_CHGDETDONE		BIT(14)
 #define USB2PHY_RESTARTCHGDET		BIT(15)
 #define USB2PHY_DISCHGDET		BIT(30)
 
@@ -232,6 +237,16 @@ int omap4_charger_detect(void)
 	} while (!time_after(jiffies, timeout));
 
 	switch (chargertype) {
+	case CHARGER_TYPE_WAIT:
+		pr_info("Wait state\n");
+		break;
+	case CHARGER_TYPE_NO_CONTACT:
+		pr_info("No contact\n");
+		charger = -ENODEV;
+		break;
+	case CHARGER_TYPE_UNKOWN_ERR:
+		pr_info("Unknown error!\n");
+		break;
 	case CHARGER_TYPE_DEDICATED:
 		charger = POWER_SUPPLY_TYPE_USB_DCP;
 		pr_info("DCP detected\n");
@@ -246,6 +261,10 @@ int omap4_charger_detect(void)
 		break;
 	case CHARGER_TYPE_PS2:
 		pr_info("PS/2 detected!\n");
+		break;
+	case CHARGER_TYPE_INTERRUPT:
+		pr_info("Interrupt\n");
+		charger = -ENODEV;
 		break;
 	default:
 		pr_err("Unknown charger detected! %d\n", chargertype);
