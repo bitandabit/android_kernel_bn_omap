@@ -33,6 +33,7 @@
 #include <linux/power_supply.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/kthread.h>
 
 #include <plat/usb.h>
 
@@ -93,6 +94,9 @@
 #define CONTROLLER_STAT1		0x03
 #define	VBUS_DET			BIT(2)
 
+#define CHGDET_TIMEOUT_MS		500
+#define CHGDET_DELAY_MS			10
+
 struct twl6030_usb {
 	struct otg_transceiver	otg;
 	struct device		*dev;
@@ -114,6 +118,8 @@ struct twl6030_usb {
 	bool			irq_enabled;
 	bool			vbus_enable;
 	bool			is_phy_suspended;
+	bool			is_charger_detect_start;
+	struct completion	irq_event;
 	unsigned long		features;
 };
 
@@ -302,6 +308,7 @@ static ssize_t twl6030_usb_vbus_show(struct device *dev,
 	return ret;
 }
 static DEVICE_ATTR(vbus, 0444, twl6030_usb_vbus_show, NULL);
+static struct task_struct *task;
 
 int twl6030_status = USB_EVENT_NONE;
 
@@ -324,12 +331,121 @@ static void twl6030_unset_reg(struct twl6030_usb *twl, u8 module,
 	twl6030_writeb(twl, module, tdata, address);
 }
 
+static void twl6030_charger_detect_done(struct twl6030_usb *twl)
+{
+	u8 vbus_state, hw_state;
+	int status, charger_type;
+
+	hw_state   = twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
+
+	vbus_state = twl6030_readb(twl, TWL_MODULE_MAIN_CHARGE,
+						CONTROLLER_STAT1);
+	vbus_state = vbus_state & VBUS_DET;
+
+	charger_type = twl6030_charger_detect_status(twl);
+	twl6030_charger_detect_stop(twl);
+	twl6030_phy_suspend(&twl->otg, 1);
+	if ((vbus_state) && !(hw_state & STS_USB_ID) &&
+				(hw_state & STS_PLUG_DET)) {
+		switch (charger_type) {
+		case POWER_SUPPLY_TYPE_USB:
+		case POWER_SUPPLY_TYPE_USB_CDP:
+			pr_info("POWER_SUPPLY_TYPE_USB_CDP\n");
+			regulator_enable(twl->usb3v3);
+
+			status = USB_EVENT_VBUS;
+			twl6030_status = USB_EVENT_VBUS;
+			twl->otg.default_a = false;
+			twl->asleep = 1;
+			break;
+
+		case POWER_SUPPLY_TYPE_USB_DCP:
+			pr_info("POWER_SUPPLY_TYPE_USB_DCP\n");
+			regulator_disable(twl->usb3v3);
+			status = USB_EVENT_CHARGER;
+			twl6030_status = USB_EVENT_CHARGER;
+			twl->usb_cinlimit_mA = 1800;
+			break;
+
+		default:
+
+			regulator_disable(twl->usb3v3);
+			status = USB_EVENT_NO_CONTACT;
+			twl6030_status = USB_EVENT_NO_CONTACT;
+			goto vbus_notify;
+		}
+		twl->otg.state = OTG_STATE_B_IDLE;
+		twl->linkstat = status;
+		twl->otg.last_event = status;
+		atomic_notifier_call_chain(&twl->otg.notifier,
+				status, &charger_type);
+	}
+
+vbus_notify:
+	sysfs_notify(&twl->dev->kobj, NULL, "vbus");
+	twl->prev_vbus = vbus_state;
+}
+
+static int twl6030_chg_detect_thread(void *_twl)
+{
+	struct twl6030_usb *twl = _twl;
+	unsigned long timeout;
+
+	while (!kthread_should_stop()) {
+
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule();
+
+		if (!twl->is_charger_detect_start)
+			continue;
+
+		/* Program MISC2 register and set bit VUSB_IN_VBAT */
+		twl6030_set_reg(twl, TWL6030_MODULE_ID0, 0x10, TWL6030_MISC2);
+		regulator_enable(twl->usb3v3);
+		twl6030_phy_suspend(&twl->otg, 0);
+		twl6030_charger_detect_start(twl);
+		timeout = jiffies + msecs_to_jiffies(CHGDET_TIMEOUT_MS);
+		do {
+			if (twl->is_phy_suspended)
+				twl6030_phy_suspend(&twl->otg, 0);
+			if (twl6030_charger_detected(twl))
+				break;
+
+			if (wait_for_completion_interruptible_timeout
+					(&twl->irq_event,
+					msecs_to_jiffies(CHGDET_DELAY_MS)))
+				goto break_detecting;
+		} while (!time_after(jiffies, timeout));
+
+		twl6030_charger_detect_done(twl);
+		twl->is_charger_detect_start = false;
+		continue;
+
+break_detecting:
+		twl6030_charger_detect_stop(twl);
+		twl6030_phy_suspend(&twl->otg, 1);
+		twl->is_charger_detect_start = false;
+	}
+
+	return 0;
+}
+
+static irqreturn_t twl6030_usb_handler_irq(int irq, void *_twl)
+{
+	struct twl6030_usb *twl = _twl;
+
+	if (twl->is_charger_detect_start) {
+		complete(&twl->irq_event);
+		return IRQ_HANDLED;
+	}
+
+	return IRQ_WAKE_THREAD;
+}
+
 static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 {
 	struct twl6030_usb *twl = _twl;
-	int status;
 	u8 vbus_state, hw_state;
-	unsigned charger_type;
 
 	hw_state   = twl6030_readb(twl, TWL6030_MODULE_ID0, STS_HW_CONDITIONS);
 
@@ -341,57 +457,30 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 	if (vbus_state == twl->prev_vbus)
 		return IRQ_HANDLED;
 
-	if ((vbus_state) && !(hw_state & STS_USB_ID)) {
-		/* Program MISC2 register and set bit VUSB_IN_VBAT */
-		twl6030_set_reg(twl, TWL6030_MODULE_ID0, 0x10, TWL6030_MISC2);
-		regulator_enable(twl->usb3v3);
-		twl6030_phy_suspend(&twl->otg, 0);
-		charger_type = omap4_charger_detect();
-		twl6030_phy_suspend(&twl->otg, 1);
-		if ((charger_type == POWER_SUPPLY_TYPE_USB_CDP)
-				|| (charger_type == POWER_SUPPLY_TYPE_USB)) {
-
-			status = USB_EVENT_VBUS;
-			twl6030_status = USB_EVENT_VBUS;
-			twl->otg.default_a = false;
-			twl->asleep = 1;
-			twl->otg.state = OTG_STATE_B_IDLE;
-			twl->linkstat = status;
-			twl->otg.last_event = status;
-		} else if (charger_type == POWER_SUPPLY_TYPE_USB_DCP) {
-			regulator_disable(twl->usb3v3);
-			status = USB_EVENT_CHARGER;
-			twl6030_status = USB_EVENT_CHARGER;
-			twl->usb_cinlimit_mA = 1800;
-			twl->otg.state = OTG_STATE_B_IDLE;
-			twl->linkstat = status;
-			twl->otg.last_event = status;
-		} else {
-			regulator_disable(twl->usb3v3);
-			status = USB_EVENT_NO_CONTACT;
-			twl6030_status = USB_EVENT_NO_CONTACT;
-			goto vbus_notify;
-		}
-		atomic_notifier_call_chain(&twl->otg.notifier,
-				status, &charger_type);
+	if ((vbus_state) && !(hw_state & STS_USB_ID) &&
+				(hw_state & STS_PLUG_DET)) {
+		twl->is_charger_detect_start = true;
+		wake_up_process(task);
+		return IRQ_HANDLED;
 	}
+
 	if (!vbus_state) {
-		status = USB_EVENT_NONE;
+		int status = USB_EVENT_NONE;
 		twl6030_status = USB_EVENT_NONE;
 		twl->linkstat = status;
 		twl->otg.last_event = status;
 		atomic_notifier_call_chain(&twl->otg.notifier,
 				status, twl->otg.gadget);
-		if (twl->asleep) {
-			regulator_disable(twl->usb3v3);
-			twl->asleep = 0;
-			/* Program MISC2 register and clear bit VUSB_IN_VBAT */
-			twl6030_unset_reg(twl, TWL6030_MODULE_ID0, 0x10,
-							TWL6030_MISC2);
-		}
 	}
 
-vbus_notify:
+	if (twl->asleep) {
+		regulator_disable(twl->usb3v3);
+		twl->asleep = 0;
+		/* Program MISC2 register and clear bit VUSB_IN_VBAT */
+		twl6030_unset_reg(twl, TWL6030_MODULE_ID0, 0x10,
+						TWL6030_MISC2);
+	}
+
 	sysfs_notify(&twl->dev->kobj, NULL, "vbus");
 	twl->prev_vbus = vbus_state;
 	return IRQ_HANDLED;
@@ -640,16 +729,23 @@ static int __devinit twl6030_usb_probe(struct platform_device *pdev)
 		return status;
 	}
 
-	status = request_threaded_irq(twl->irq2, NULL, twl6030_usb_irq,
+	init_completion(&twl->irq_event);
+	twl->is_charger_detect_start = false;
+	task = kthread_run(twl6030_chg_detect_thread, (void *)twl,
+			"twl6030-charger");
+	if (IS_ERR(task)) {
+		pr_err("twl6030: could not create kthread twl6030-charger\n");
+		goto fail_kthread;
+	}
+
+	status = request_threaded_irq(twl->irq2, twl6030_usb_handler_irq,
+			twl6030_usb_irq,
 			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
 			"twl6030_usb", twl);
 	if (status < 0) {
 		dev_err(&pdev->dev, "can't get IRQ %d, err %d\n",
 			twl->irq2, status);
-		free_irq(twl->irq1, twl);
-		device_remove_file(twl->dev, &dev_attr_vbus);
-		kfree(twl);
-		return status;
+			goto fail_irq;
 	}
 
 	twl->asleep = 0;
@@ -657,9 +753,23 @@ static int __devinit twl6030_usb_probe(struct platform_device *pdev)
 	pdata->phy_init(dev);
 	twl6030_phy_suspend(&twl->otg, 0);
 	twl6030_enable_irq(&twl->otg);
+
+	while (twl->is_charger_detect_start)
+		msleep(CHGDET_DELAY_MS);
+
 	dev_info(&pdev->dev, "Initialized TWL6030 USB module\n");
 
 	return 0;
+
+fail_irq:
+	kthread_stop(task);
+
+fail_kthread:
+	free_irq(twl->irq1, twl);
+	device_remove_file(twl->dev, &dev_attr_vbus);
+	kfree(twl);
+
+	return status;
 }
 
 static int __exit twl6030_usb_remove(struct platform_device *pdev)
@@ -674,6 +784,7 @@ static int __exit twl6030_usb_remove(struct platform_device *pdev)
 		REG_INT_MSK_LINE_C);
 	twl6030_interrupt_mask(TWL6030_USBOTG_INT_MASK,
 			REG_INT_MSK_STS_C);
+	kthread_stop(task);
 	free_irq(twl->irq1, twl);
 	free_irq(twl->irq2, twl);
 	regulator_put(twl->usb3v3);
@@ -696,6 +807,9 @@ static struct platform_driver twl6030_usb_driver = {
 
 static int __init twl6030_usb_init(void)
 {
+	if (task)
+		kthread_stop(task);
+
 	return platform_driver_register(&twl6030_usb_driver);
 }
 subsys_initcall(twl6030_usb_init);
