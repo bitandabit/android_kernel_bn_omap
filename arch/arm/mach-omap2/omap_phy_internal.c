@@ -210,6 +210,87 @@ static int omap4430_phy_set_clk(struct device *dev, int on)
 	return 0;
 }
 
+void omap4430_charger_detect_start(void)
+{
+	u32 usb2phycore = 0;
+
+	/* enable charger detection and restart it */
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore &= ~USB2PHY_DISCHGDET;
+	usb2phycore |= USB2PHY_RESTARTCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+	mdelay(2);
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore &= ~USB2PHY_RESTARTCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+}
+
+void omap4430_charger_detect_stop(void)
+{
+	u32 usb2phycore = 0;
+
+	/* disable charger detection and stop it */
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	usb2phycore |= USB2PHY_DISCHGDET;
+	omap4_ctrl_pad_writel(usb2phycore, CONTROL_USB2PHYCORE);
+}
+
+int omap4430_charger_detect_status(void)
+{
+	int charger = POWER_SUPPLY_TYPE_USB;
+	u32 usb2phycore = 0;
+	u32 chargertype = 0;
+
+	usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	chargertype = ((usb2phycore >> 21) & 0x7);
+	switch (chargertype) {
+	case CHARGER_TYPE_WAIT:
+		pr_info("Wait state\n");
+		break;
+	case CHARGER_TYPE_NO_CONTACT:
+		pr_info("No contact\n");
+		charger = -ENODEV;
+		break;
+	case CHARGER_TYPE_PS2:
+		pr_info("PS/2 detected!\n");
+		break;
+	case CHARGER_TYPE_UNKOWN_ERR:
+		pr_info("Unknown error!\n");
+		break;
+	case CHARGER_TYPE_DEDICATED:
+		charger = POWER_SUPPLY_TYPE_USB_DCP;
+		pr_info("DCP detected\n");
+		break;
+	case CHARGER_TYPE_HOST:
+		charger = POWER_SUPPLY_TYPE_USB_CDP;
+		pr_info("CDP detected\n");
+		break;
+	case CHARGER_TYPE_PC:
+		charger = POWER_SUPPLY_TYPE_USB;
+		pr_info("PC detected\n");
+		break;
+	case CHARGER_TYPE_INTERRUPT:
+		pr_info("Interrupt\n");
+		charger = -ENODEV;
+		break;
+	default:
+		pr_err("Unknown charger detected! %d\n", chargertype);
+	}
+
+	return charger;
+}
+
+int omap4430_charger_detected(void)
+{
+	u32 usb2phycore = omap4_ctrl_pad_readl(CONTROL_USB2PHYCORE);
+	u32 chargermask = USB2PHY_CHGDETDONE | USB2PHY_CHGDETECTED
+				| ((usb2phycore >> 21) & 0x7);
+
+	if (usb2phycore & chargermask)
+		return true;
+
+	return false;
+}
 int omap4_charger_detect(void)
 {
 	unsigned long timeout;
