@@ -195,7 +195,7 @@
 #define MR10_ZQ_ZQRESET		0xC3
 
 /* TEMP_ALERT_CONFIG */
-#define TEMP_ALERT_POLL_INTERVAL_MS	360 /* for temp gradient - 5 C/s */
+#define TEMP_ALERT_POLL_INTERVAL_MS	300 /* for temp gradient - 5 C/s */
 #define TEMP_ALERT_CONFIG_DEVCT_1	0
 #define TEMP_ALERT_CONFIG_DEVWDT_32	2
 
