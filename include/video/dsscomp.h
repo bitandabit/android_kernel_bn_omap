@@ -357,6 +357,8 @@ struct dss2_ovl_cfg {
 	__u8 enabled;	/* bool */
 	__u8 zonly;	/* only set zorder and enabled bit */
 	__u8 mgr_ix;	/* mgr index */
+
+	__u8 mflag_en;	/* mflag for the overlay */
 } __attribute__ ((aligned(4)));
 
 enum omapdss_buffer_type {
