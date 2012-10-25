@@ -1444,10 +1444,40 @@ u32 dispc_get_plane_fifo_size(enum omap_plane plane)
 	return dispc.fifo_size[plane];
 }
 
+static void dispc_ovl_set_mflag_attribute(enum dispc_mflag_ctrl ctrl)
+{
+	dispc_write_reg(DISPC_GLOBAL_MFLAG, ctrl);
+}
+
+void dispc_ovl_set_global_mflag(enum omap_plane plane, bool mflag)
+{
+	u32 fifosize;
+	u8 bit;
+
+	/* Set the ARBITRATION bit to give
+	 * highest priority to the pipeline.
+	 * MFLAG is applicable only to high
+	 * priority pipes.
+	 */
+	 if (plane == OMAP_DSS_GFX)
+		bit = 14;
+	 else
+		bit = 23;
+	 REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), mflag, bit, bit);
+
+	 fifosize = dispc_get_plane_fifo_size(plane);
+	 /* As per the simultaion team suggestion, below thesholds are set:
+	  * HT = fifosize * 5/8;
+	  * LT = fifosize * 4/8;
+	  */
+	 dispc_write_reg(DISPC_OVL_MFLAG_THRESHOLD(plane),
+		FLD_VAL((fifosize*5)/8, 31, 16) |
+		FLD_VAL((fifosize*4)/8, 15, 0));
+}
+
 void dispc_setup_plane_fifo(enum omap_plane plane, u32 low, u32 high)
 {
 	u8 hi_start, hi_end, lo_start, lo_end;
-	u32 fifosize;
 
 	dss_feat_get_reg_field(FEAT_REG_FIFOHIGHTHRESHOLD, &hi_start, &hi_end);
 	dss_feat_get_reg_field(FEAT_REG_FIFOLOWTHRESHOLD, &lo_start, &lo_end);
@@ -1468,16 +1498,8 @@ void dispc_setup_plane_fifo(enum omap_plane plane, u32 low, u32 high)
 			FLD_VAL(high, hi_start, hi_end) |
 			FLD_VAL(low, lo_start, lo_end));
 
-	if (plane == OMAP_DSS_GFX) {
-		/* give high priority to GFX pipe */
-		REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(OMAP_DSS_GFX), 1, 14, 14);
-	}
-
-	fifosize = dispc_get_plane_fifo_size(plane);
-
-	if (dss_has_feature(FEAT_GLOBAL_MFLAG))
-		dispc_write_reg(DISPC_OVL_MFLAG_THRESHOLD(plane),
-			FLD_VAL((fifosize*5)/8, 31, 16) | FLD_VAL((fifosize*4)/8, 15, 0));
+	if (plane == OMAP_DSS_GFX)
+		dispc_ovl_set_global_mflag(OMAP_DSS_GFX, true);
 }
 
 void dispc_enable_fifomerge(bool enable)
@@ -4513,7 +4535,7 @@ static void _omap_dispc_initial_config(void)
 	dispc_read_plane_fifo_sizes();
 
 	if (dss_has_feature(FEAT_GLOBAL_MFLAG))
-		dispc_write_reg(DISPC_GLOBAL_MFLAG, 2);
+		dispc_ovl_set_mflag_attribute(DISPC_MFLAG_CTRL_ENABLE);
 
 	if (board_data->move_wb_buffers)
 		dispc_move_wb_buffers(false);

@@ -534,6 +534,7 @@ void dispc_find_clk_divs(bool is_tft, unsigned long req_pck, unsigned long fck,
 		struct dispc_clock_info *cinfo);
 int dispc_calc_clock_rates(unsigned long dispc_fclk_rate,
 		struct dispc_clock_info *cinfo);
+void dispc_ovl_set_global_mflag(enum omap_plane plane, bool mflag);
 int dispc_set_clock_div(enum omap_channel channel,
 		struct dispc_clock_info *cinfo);
 int dispc_get_clock_div(enum omap_channel channel,

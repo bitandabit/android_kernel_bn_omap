@@ -99,7 +99,15 @@
 					DISPC_FIR_COEF_V2_OFFSET(n, i))
 #define DISPC_OVL_PRELOAD(n)		(DISPC_OVL_BASE(n) + \
 					DISPC_PRELOAD_OFFSET(n))
-#define DISPC_OVL_MFLAG_THRESHOLD(n)	(0x0860 + 0x4*n)
+#define DISPC_OVL_MFLAG_THRESHOLD(n)	(DISPC_OVL_BASE(n) + \
+					DISPC_MFLAG_OFFSET(n))
+
+/* MFLAG control attribute */
+enum dispc_mflag_ctrl {
+	DISPC_MFLAG_CTRL_DISABLE = 0,
+	DISPC_MFLAG_CTRL_FORCE = 1,
+	DISPC_MFLAG_CTRL_ENABLE = 2,
+};
 
 /* DISPC manager/channel specific registers */
 static inline u16 DISPC_DEFAULT_COLOR(enum omap_channel channel)
@@ -786,6 +794,22 @@ static inline u16 DISPC_PRELOAD_OFFSET(enum omap_plane plane)
 	case OMAP_DSS_VIDEO3:
 		return 0x00A0;
 	case OMAP_DSS_WB:
+	default:
+		BUG();
+	}
+}
+
+static inline u16 DISPC_MFLAG_OFFSET(enum omap_plane plane)
+{
+	switch (plane) {
+	case OMAP_DSS_GFX:
+		return 0x7E0;
+	case OMAP_DSS_VIDEO1:
+		return 0x7A8;
+	case OMAP_DSS_VIDEO2:
+		return 0x71C;
+	case OMAP_DSS_VIDEO3:
+		return 0x56C;
 	default:
 		BUG();
 	}
