@@ -1696,6 +1696,8 @@ static void dss_apply_irq_handler(void *data, u32 mask)
 
 	spin_lock(&dss_cache.lock);
 
+	dispc_process_divider();
+
 	for (i = 0; i < num_mgrs; i++)
 		mgr_busy[i] = dispc_go_busy(i);
 

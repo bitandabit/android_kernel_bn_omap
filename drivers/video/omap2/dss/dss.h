@@ -114,6 +114,11 @@ enum dss_hdmi_venc_clk_source_select {
 	DSS_HDMI_M_PCLK = 1,
 };
 
+enum dss_opp_state {
+	DSS_OPP50	= 0,
+	DSS_OPP100	= 1,
+};
+
 struct dss_clock_info {
 	/* rates that we get with dividers below */
 	unsigned long fck;
@@ -527,6 +532,10 @@ void dispc_set_lcd_timings(enum omap_channel channel,
 unsigned long dispc_fclk_rate(void);
 unsigned long dispc_lclk_rate(enum omap_channel channel);
 unsigned long dispc_pclk_rate(enum omap_channel channel);
+
+void dispc_process_divider(void);
+void dss_request_opp(enum dss_opp_state opp);
+
 void dispc_set_pol_freq(enum omap_channel channel,
 		enum omap_panel_config config, u8 acbi, u8 acb);
 void dispc_find_clk_divs(bool is_tft, unsigned long req_pck, unsigned long fck,
