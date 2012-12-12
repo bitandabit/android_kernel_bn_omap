@@ -1124,11 +1124,14 @@ static void hci_power_on(struct work_struct *work)
 
 	BT_DBG("%s", hdev->name);
 
+#if !(defined(CONFIG_MACH_OMAP_OVATION)||defined(CONFIG_MACH_OMAP_HUMMINGBIRD))
+// Avoid opening device when we do power on
 	err = hci_dev_open(hdev->id);
 	if (err < 0) {
 		mgmt_set_powered_failed(hdev, err);
 		return;
 	}
+#endif
 
 	if (test_bit(HCI_AUTO_OFF, &hdev->dev_flags))
 		schedule_delayed_work(&hdev->power_off,
@@ -1145,7 +1148,10 @@ static void hci_power_off(struct work_struct *work)
 
 	BT_DBG("%s", hdev->name);
 
+#if !(defined(CONFIG_MACH_OMAP_OVATION)||defined(CONFIG_MACH_OMAP_HUMMINGBIRD))
+// Avoid closing device when we do power off
 	hci_dev_do_close(hdev);
+#endif
 }
 
 static void hci_discov_off(struct work_struct *work)
