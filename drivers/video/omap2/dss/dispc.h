@@ -109,6 +109,11 @@ enum dispc_mflag_ctrl {
 	DISPC_MFLAG_CTRL_ENABLE = 2,
 };
 
+enum dispc_mflag_start {
+	DISPC_MFLAG_START_DISABLE = 0,
+	DISPC_MFLAG_START_ENABLE = 1,
+};
+
 /* DISPC manager/channel specific registers */
 static inline u16 DISPC_DEFAULT_COLOR(enum omap_channel channel)
 {

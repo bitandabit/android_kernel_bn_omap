@@ -1446,7 +1446,12 @@ u32 dispc_get_plane_fifo_size(enum omap_plane plane)
 
 static void dispc_ovl_set_mflag_attribute(enum dispc_mflag_ctrl ctrl)
 {
-	dispc_write_reg(DISPC_GLOBAL_MFLAG, ctrl);
+	REG_FLD_MOD(DISPC_GLOBAL_MFLAG, ctrl, 1, 0);
+}
+
+static void dispc_ovl_set_mflag_start(enum dispc_mflag_start start)
+{
+	REG_FLD_MOD(DISPC_GLOBAL_MFLAG, start, 2, 2);
 }
 
 void dispc_ovl_set_global_mflag(enum omap_plane plane, bool mflag)
@@ -1463,7 +1468,13 @@ void dispc_ovl_set_global_mflag(enum omap_plane plane, bool mflag)
 		bit = 14;
 	 else
 		bit = 23;
+
 	 REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), mflag, bit, bit);
+
+	 dispc_ovl_set_mflag_attribute(DISPC_MFLAG_CTRL_ENABLE);
+	 /* Allows the mflag signal to start at the beginning of each
+	  * frame even if the DMA buffer is empty */
+	 dispc_ovl_set_mflag_start(DISPC_MFLAG_START_ENABLE);
 
 	 fifosize = dispc_get_plane_fifo_size(plane);
 	 /* As per the simultaion team suggestion, below thesholds are set:
@@ -2385,6 +2396,9 @@ int dispc_setup_plane(enum omap_plane plane,
 		enum omap_channel channel, u32 puv_addr,
 		bool source_of_wb)
 {
+	struct omap_overlay *ovl = omap_dss_get_overlay(plane);
+	struct omap_overlay_info *oi = &ovl->info;
+
 	const int maxdownscale = cpu_is_omap24xx() ? 2 : 4;
 	bool fieldmode = 0;
 	int cconv = 0;
@@ -2602,6 +2616,10 @@ int dispc_setup_plane(enum omap_plane plane,
 		_dispc_set_plane_ba1_uv(plane, puv_addr + offset1);
 	}
 
+	if (dss_has_feature(FEAT_GLOBAL_MFLAG)) {
+		oi->mflag_en = true;
+		dispc_ovl_set_global_mflag(ovl->id, oi->mflag_en);
+	}
 
 	_dispc_set_row_inc(plane, row_inc);
 	_dispc_set_pix_inc(plane, pix_inc);
@@ -4533,9 +4551,6 @@ static void _omap_dispc_initial_config(void)
 	dispc_set_loadmode(OMAP_DSS_LOAD_FRAME_ONLY);
 
 	dispc_read_plane_fifo_sizes();
-
-	if (dss_has_feature(FEAT_GLOBAL_MFLAG))
-		dispc_ovl_set_mflag_attribute(DISPC_MFLAG_CTRL_ENABLE);
 
 	if (board_data->move_wb_buffers)
 		dispc_move_wb_buffers(false);
