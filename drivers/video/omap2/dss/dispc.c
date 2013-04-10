@@ -2382,6 +2382,15 @@ loop:
 	return 0;
 }
 
+static void dispc_enable_arbitration(enum omap_plane plane, bool enable)
+{
+	DSSDBG("dispc_enable_arbitration %d, %d\n", plane, enable);
+
+	REG_FLD_MOD(DISPC_OVL_ATTRIBUTES(plane), enable ? 1 : 0, 14, 14);
+
+	return;
+}
+
 int dispc_setup_plane(enum omap_plane plane,
 		u32 paddr, u16 screen_width,
 		u16 pos_x, u16 pos_y,
@@ -2619,6 +2628,9 @@ int dispc_setup_plane(enum omap_plane plane,
 	if (dss_has_feature(FEAT_GLOBAL_MFLAG)) {
 		oi->mflag_en = true;
 		dispc_ovl_set_global_mflag(ovl->id, oi->mflag_en);
+	} else if (plane == OMAP_DSS_GFX) {
+		dispc_enable_arbitration(plane,
+					channel == OMAP_DSS_CHANNEL_DIGIT);
 	}
 
 	_dispc_set_row_inc(plane, row_inc);
