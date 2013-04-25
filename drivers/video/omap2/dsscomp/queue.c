@@ -180,7 +180,7 @@ error:
 }
 
 /* get display index from manager */
-static u32 get_display_ix(struct omap_overlay_manager *mgr)
+u32 get_display_ix(struct omap_overlay_manager *mgr)
 {
 	u32 i;
 
@@ -717,11 +717,6 @@ skip_ovl_set:
 	/* no need for mutex as no callbacks are scheduled yet */
 	comp->state = DSSCOMP_STATE_APPLIED;
 	log_state(comp, dsscomp_apply, 0);
-
-	if (!d->win.w && !d->win.x)
-		d->win.w = dssdev->panel.timings.x_res - d->win.x;
-	if (!d->win.h && !d->win.y)
-		d->win.h = dssdev->panel.timings.y_res - d->win.y;
 
 	/* Report m2m_only mode to a manager. A manager will apply a new
 	 * composition and will free a previous composition immediately. */
