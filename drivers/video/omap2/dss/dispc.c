@@ -2626,7 +2626,6 @@ int dispc_setup_plane(enum omap_plane plane,
 	}
 
 	if (dss_has_feature(FEAT_GLOBAL_MFLAG)) {
-		oi->mflag_en = true;
 		dispc_ovl_set_global_mflag(ovl->id, oi->mflag_en);
 	} else if (plane == OMAP_DSS_GFX) {
 		dispc_enable_arbitration(plane,
