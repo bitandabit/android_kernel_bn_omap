@@ -361,6 +361,11 @@ config MACH_OMAP_BLAZE
 	select OMAP_RAM_CONSOLE
 	select CDC_TCXO
 
+config OVATION_ALWAYS_COLD_BOOT
+	bool "Always perform cold reboot on reset"
+	default n
+	depends on MACH_OMAP_OVATION
+
 config MACH_OMAP4_PANDA
 	bool "OMAP4 Panda Board"
 	default y
