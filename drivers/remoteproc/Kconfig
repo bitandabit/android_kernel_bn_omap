@@ -14,6 +14,19 @@ config REMOTE_PROC_AUTOSUSPEND
           Say Y here if you want remote processor to suspend
           after some time of inactivity.
 
+config REMOTEPROC_USE_CARVEOUT
+	bool "Use carveout memory within remoteproc"
+	default n
+	help
+	  Say Y here if you want to use carveout memory in remoteproc.
+
+	  This option controls the memory allocation mechanism the remoteproc
+	  driver will use for its firmware sections. Enabling this option will
+	  rely on a carveout memory pool supplied to the remoteproc driver
+	  through the platform data.
+
+	  Leave it as n if you want to use the default CMA mechanism.
+
 # can't be tristate, due to omap_device_* and omap_hwmod_* dependency
 config OMAP_REMOTE_PROC
 	bool "OMAP remoteproc support"
@@ -70,6 +83,36 @@ config REMOTEPROC_WATCHDOG
 	default y
 	help
 	  Say y to enable watchdog timer for remote cores
+
+# Amount of CMA memory to reserve for OMAP's remoteproc sub-system.
+# We need quite much. Fortunately, CMA makes sure this memory isn't
+# wasted in case we're not loading the remote processors.
+config OMAP4_IPU_CMA_SIZE_512MB
+	hex "Cortex M3 physically contiguous memory pool size (in bytes)"
+	depends on OMAP_REMOTEPROC_IPU || OMAP_REMOTE_PROC_IPU
+	default 0x2000000
+	help
+	  Allocate a specified size of physically contiguous memory (CMA)
+	  for OMAP4's dual Cortex-M3 sub-system. Vast majority of this
+	  memory isn't wasted in case the M3 sub-system isn't loaded.
+
+config OMAP4_IPU_CMA_SIZE
+	hex "Cortex M3 physically contiguous memory pool size (in bytes)"
+	depends on OMAP_REMOTEPROC_IPU || OMAP_REMOTE_PROC_IPU
+	default 0x7000000
+	help
+	  Allocate a specified size of physically contiguous memory (CMA)
+	  for OMAP4's dual Cortex-M3 sub-system. Vast majority of this
+	  memory isn't wasted in case the M3 sub-system isn't loaded.
+
+config OMAP_DSP_CMA_SIZE
+	hex "Dsp physically contiguous memory pool size (in bytes)"
+	depends on OMAP_REMOTEPROC_DSP || OMAP_REMOTE_PROC_DSP
+	default 0x700000
+	help
+	  Allocate a specified size of physically contiguous memory (CMA)
+	  for OMAP's dsp sub-system. Vast majority of this
+	  memory isn't wasted in case the Dsp sub-system isn't loaded.
 
 config REMOTEPROC_CORE_DUMP
 	bool "Support for extracting a core dump from a remote processor"
