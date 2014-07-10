@@ -324,6 +324,8 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 			twl->otg.last_event = status;
 		} else {
 			regulator_disable(twl->usb3v3);
+			status = USB_EVENT_NO_CONTACT;
+			twl6030_status = USB_EVENT_NO_CONTACT;
 			goto vbus_notify;
 		}
 		atomic_notifier_call_chain(&twl->otg.notifier,
