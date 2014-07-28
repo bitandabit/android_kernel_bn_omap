@@ -39,6 +39,8 @@
 #include <video/omapdss.h>
 #include <video/omap-panel-dsi.h>
 
+#include "../dss/dss.h"
+
 /* device private data structure */
 struct novatek_data {
 	struct mutex lock;
@@ -406,6 +408,7 @@ static int novatek_probe(struct omap_dss_device *dssdev)
 		return r;
 	}
 
+	dssdev->panel.config = OMAP_DSS_LCD_TFT;
 	d2d->dssdev = dssdev;
 	strcpy(d2d->cabc_mode, "none");
 	
@@ -468,7 +471,7 @@ static int novatek_power_on(struct omap_dss_device *dssdev)
 	/* At power on the first vsync has not been received yet */
 	dssdev->first_vsync = false;
 
-	dev_dbg(&dssdev->dev, "power_on\n");
+	dev_dbg(&dssdev->dev, "power_on -- skip_init==%d\n", dssdev->skip_init);
 
 	if (dssdev->platform_enable)
 		dssdev->platform_enable(dssdev);
@@ -491,10 +494,16 @@ static int novatek_power_on(struct omap_dss_device *dssdev)
 		/* do extra job to match kozio registers (???) */
 		dsi_videomode_panel_preinit(dssdev);
 		msleep(1);
-	}
 
-	dsi_video_mode_enable(dssdev, bpp_to_datatype(dssdev->ctrl.pixel_size));
-	dssdev->skip_init=false;
+		omapdss_dsi_vc_enable_hs(dssdev, d2d->channel0, true);
+		omapdss_dsi_vc_enable_hs(dssdev, d2d->channel_cmd, true);
+
+		dsi_video_mode_enable(dssdev, bpp_to_datatype(dssdev->ctrl.pixel_size));
+	}
+	else {
+		dssdev->skip_init = false;
+		dispc_enable_channel(dssdev->manager->id, dssdev->manager->device->type, 1);
+	}
 
 	r = novatek_unlock_and_write(dssdev, 0, 0xE5, 0x0);
 
