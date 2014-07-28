@@ -268,6 +268,13 @@ static ssize_t twl6030_usb_vbus_show(struct device *dev,
 }
 static DEVICE_ATTR(vbus, 0444, twl6030_usb_vbus_show, NULL);
 
+int twl6030_status = USB_EVENT_NONE;
+
+int twl6030_usbotg_get_status()
+{
+	return twl6030_status;
+};
+
 static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 {
 	struct twl6030_usb *twl = _twl;
@@ -301,6 +308,7 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 				|| (charger_type == POWER_SUPPLY_TYPE_USB)) {
 
 			status = USB_EVENT_VBUS;
+			twl6030_status = USB_EVENT_VBUS;
 			twl->otg.default_a = false;
 			twl->asleep = 1;
 			twl->otg.state = OTG_STATE_B_IDLE;
@@ -309,6 +317,7 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 		} else if (charger_type == POWER_SUPPLY_TYPE_USB_DCP) {
 			regulator_disable(twl->usb3v3);
 			status = USB_EVENT_CHARGER;
+			twl6030_status = USB_EVENT_CHARGER;
 			twl->usb_cinlimit_mA = 1800;
 			twl->otg.state = OTG_STATE_B_IDLE;
 			twl->linkstat = status;
@@ -322,6 +331,7 @@ static irqreturn_t twl6030_usb_irq(int irq, void *_twl)
 	}
 	if (!vbus_state) {
 		status = USB_EVENT_NONE;
+		twl6030_status = USB_EVENT_NONE;
 		twl->linkstat = status;
 		twl->otg.last_event = status;
 		atomic_notifier_call_chain(&twl->otg.notifier,
@@ -372,6 +382,7 @@ static irqreturn_t twl6030_usbotg_irq(int irq, void *_twl)
 						USB_ID_INT_EN_HI_SET);
 
 			status = USB_EVENT_ID;
+			twl6030_status = USB_EVENT_ID;
 			twl->otg.default_a = true;
 			twl->otg.state = OTG_STATE_A_IDLE;
 			twl->linkstat = status;
