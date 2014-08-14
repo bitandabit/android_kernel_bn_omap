@@ -393,6 +393,10 @@ config MACH_OMAP4_PANDA
 	select REGULATOR_FIXED_VOLTAGE if REGULATOR
 	select OMAP_TPS6236X
 
+config USE_AMAZON_DUCATI
+	bool "Ducati settings which are compatible with the stock binary from Amazon"
+	depends on ARCH_OMAP4
+
 config MACH_OMAP_BN
 	bool "OMAP4 B&N boards"
 	depends on ARCH_OMAP4
