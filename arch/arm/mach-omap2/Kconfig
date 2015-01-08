@@ -380,6 +380,9 @@ config MACH_OMAP_ACCLAIM
 	select HWMON
 	select OMAP_REBOOT_REASON
 	select WIRELESS_EXT
+	select WEXT_CORE
+	select WEXT_PROC
+	select WEXT_PRIV
 
 config MACH_OMAP_OVATION
 	bool "OMAP 44xx Ovation Board"
@@ -392,6 +395,10 @@ config MACH_OMAP_OVATION
 	select KEYBOARD_GPIO
 	select HWMON
 	select OMAP_REBOOT_REASON
+	select WIRELESS_EXT
+	select WEXT_CORE
+	select WEXT_PROC
+	select WEXT_PRIV
 
 config MACH_OMAP_HUMMINGBIRD
 	bool "OMAP 44xx Hummingbird Board"
@@ -404,6 +411,10 @@ config MACH_OMAP_HUMMINGBIRD
 	select KEYBOARD_GPIO
 	select HWMON
 	select OMAP_REBOOT_REASON
+	select WIRELESS_EXT
+	select WEXT_CORE
+	select WEXT_PROC
+	select WEXT_PRIV
 
 config MACH_OMAP4_PANDA
 	bool "OMAP4 Panda Board"
