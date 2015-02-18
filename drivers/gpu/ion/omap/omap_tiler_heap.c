@@ -370,9 +370,7 @@ int omap_tiler_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 		ret = remap_pfn_range(vma, addr,
 				 __phys_to_pfn(info->tiler_addrs[0]),
 				(vma->vm_end - vma->vm_start),
-				(buffer->cached ?
-				(vma->vm_page_prot)
-				: pgprot_writecombine(vma->vm_page_prot)));
+				(vma->vm_page_prot));
 	} else {
 		for (i = vma->vm_pgoff; i < n_pages; i++, addr += PAGE_SIZE) {
 			ret = remap_pfn_range(vma, addr,
@@ -386,81 +384,11 @@ int omap_tiler_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 	return ret;
 }
 
-static void per_cpu_cache_flush_arm(void *arg)
-{
-	   flush_cache_all();
-}
-
-int omap_tiler_cache_operation(struct ion_buffer *buffer, size_t len,
-			unsigned long vaddr, enum cache_operation cacheop)
-{
-	struct omap_tiler_info *info;
-	int n_pages;
-
-	if (!buffer) {
-		pr_err("%s(): buffer is NULL\n", __func__);
-		return -EINVAL;
-	}
-	if (!buffer->cached) {
-		pr_err("%s(): buffer not mapped as cacheable\n", __func__);
-		return -EINVAL;
-	}
-
-	info = buffer->priv_virt;
-	if (!info) {
-		pr_err("%s(): tiler info of buffer is NULL\n", __func__);
-		return -EINVAL;
-	}
-
-	n_pages = info->n_tiler_pages;
-	if (len > (n_pages * PAGE_SIZE)) {
-		pr_err("%s(): size to flush is greater than allocated size\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	if (TILER_PIXEL_FMT_PAGE != info->fmt) {
-		pr_err("%s(): only TILER 1D buffers can be cached\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	if (len > FULL_CACHE_FLUSH_THRESHOLD) {
-		on_each_cpu(per_cpu_cache_flush_arm, NULL, 1);
-		outer_flush_all();
-		return 0;
-	}
-
-	flush_cache_user_range(vaddr, vaddr + len);
-
-	if (cacheop == CACHE_FLUSH)
-		outer_flush_range(info->tiler_addrs[0],
-			info->tiler_addrs[0] + len);
-	else
-		outer_inv_range(info->tiler_addrs[0],
-			info->tiler_addrs[0] + len);
-	return 0;
-}
-
-int omap_tiler_heap_flush_user(struct ion_buffer *buffer, size_t len,
-			unsigned long vaddr)
-{
-	return omap_tiler_cache_operation(buffer, len, vaddr, CACHE_FLUSH);
-}
-
-int omap_tiler_heap_inval_user(struct ion_buffer *buffer, size_t len,
-			unsigned long vaddr)
-{
-	return omap_tiler_cache_operation(buffer, len, vaddr, CACHE_INVALIDATE);
-}
-
 static struct ion_heap_ops omap_tiler_ops = {
 	.allocate = omap_tiler_heap_allocate,
 	.free = omap_tiler_heap_free,
 	.phys = omap_tiler_phys,
 	.map_user = omap_tiler_heap_map_user,
-	.flush_user = omap_tiler_heap_flush_user,
-	.inval_user = omap_tiler_heap_inval_user,
 };
 
 struct ion_heap *omap_tiler_heap_create(struct ion_platform_heap *data)
