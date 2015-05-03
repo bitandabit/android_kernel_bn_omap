@@ -436,6 +436,7 @@ static void omap_wdt_shutdown(struct platform_device *pdev)
 	struct omap_wdt_dev *wdev = platform_get_drvdata(pdev);
 
 	if (wdev->omap_wdt_users) {
+		pm_runtime_get_sync(wdev->dev);
 		omap_wdt_disable(wdev);
 		pm_runtime_put_sync(wdev->dev);
 	}

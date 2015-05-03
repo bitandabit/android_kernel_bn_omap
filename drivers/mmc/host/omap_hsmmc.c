@@ -23,6 +23,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
+#include <linux/workqueue.h>
 #include <linux/timer.h>
 #include <linux/clk.h>
 #include <linux/mmc/host.h>

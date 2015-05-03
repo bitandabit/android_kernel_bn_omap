@@ -401,6 +401,7 @@ static void hdmi_compute_pll(struct omap_dss_device *dssdev, int phy,
 static void hdmi_load_hdcp_keys(struct omap_dss_device *dssdev)
 {
 	int aksv;
+	int retries = 5;
 	DSSDBG("hdmi_load_hdcp_keys\n");
 	/* load the keys and reset the wrapper to populate the AKSV registers*/
 	if (hdmi.hdmi_power_on_cb) {
@@ -920,7 +921,6 @@ DEVICE_ATTR(hdmi_timings, S_IWGRP | S_IWUSR, hdmi_timings_show,
 
 int omapdss_hdmi_display_enable(struct omap_dss_device *dssdev)
 {
-	struct omap_dss_hdmi_data *priv = dssdev->data;
 	int r = 0;
 
 	DSSINFO("ENTER hdmi_display_enable\n");

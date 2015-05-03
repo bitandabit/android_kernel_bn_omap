@@ -238,6 +238,51 @@ static const struct lpddr2_timings *get_timings_table(
 	return timings;
 }
 
+/*
+ * Finds the value of emif_sdram_config_reg
+ * All parameters are programmed based on the device on CS0.
+ * If there is a device on CS1, it will be same as that on CS0 or
+ * it will be NVM. We don't support NVM yet.
+ * If cs1_device pointer is NULL it is assumed that there is no device
+ * on CS1
+ */
+static u32 get_sdram_config_reg(const struct lpddr2_device_info *cs0_device,
+				const struct lpddr2_device_info *cs1_device,
+				const struct lpddr2_addressing *addressing,
+				u8 RL)
+{
+	u32 config_reg = 0;
+
+	mask_n_set(config_reg, OMAP44XX_REG_SDRAM_TYPE_SHIFT,
+		   OMAP44XX_REG_SDRAM_TYPE_MASK, cs0_device->type + 4);
+
+	mask_n_set(config_reg, OMAP44XX_REG_IBANK_POS_SHIFT,
+		   OMAP44XX_REG_IBANK_POS_MASK,
+		   EMIF_INTERLEAVING_POLICY_MAX_INTERLEAVING);
+
+	mask_n_set(config_reg, OMAP44XX_REG_NARROW_MODE_SHIFT,
+		   OMAP44XX_REG_NARROW_MODE_MASK, cs0_device->io_width);
+
+	mask_n_set(config_reg, OMAP44XX_REG_CL_SHIFT, OMAP44XX_REG_CL_MASK, RL);
+
+	mask_n_set(config_reg, OMAP44XX_REG_ROWSIZE_SHIFT,
+		   OMAP44XX_REG_ROWSIZE_MASK,
+		   addressing->row_sz[cs0_device->io_width]);
+
+	mask_n_set(config_reg, OMAP44XX_REG_IBANK_SHIFT,
+		   OMAP44XX_REG_IBANK_MASK, addressing->num_banks);
+
+	mask_n_set(config_reg, OMAP44XX_REG_EBANK_SHIFT,
+		   OMAP44XX_REG_EBANK_MASK,
+		   (cs1_device ? EBANK_CS1_EN : EBANK_CS1_DIS));
+
+	mask_n_set(config_reg, OMAP44XX_REG_PAGESIZE_SHIFT,
+		   OMAP44XX_REG_PAGESIZE_MASK,
+		   addressing->col_sz[cs0_device->io_width]);
+
+	return config_reg;
+}
+
 static u32 get_sdram_ref_ctrl(u32 freq,
 			      const struct lpddr2_addressing *addressing)
 {
@@ -402,6 +447,51 @@ static u32 get_sdram_tim_3_reg(u32 freq,
 		   OMAP44XX_REG_T_CKESR_MASK, val);
 
 	return tim3;
+}
+
+static u32 get_zq_config_reg(const struct lpddr2_device_info *cs1_device,
+			     const struct lpddr2_addressing *addressing,
+			     bool volt_ramp)
+{
+	u32 zq = 0, val = 0;
+	if (volt_ramp)
+		val =
+		    EMIF_ZQCS_INTERVAL_DVFS_IN_US * 10 /
+		    addressing->t_REFI_us_x10;
+	else
+		val =
+		    EMIF_ZQCS_INTERVAL_NORMAL_IN_US * 10 /
+		    addressing->t_REFI_us_x10;
+	mask_n_set(zq, OMAP44XX_REG_ZQ_REFINTERVAL_SHIFT,
+		   OMAP44XX_REG_ZQ_REFINTERVAL_MASK, val);
+
+	mask_n_set(zq, OMAP44XX_REG_ZQ_ZQCL_MULT_SHIFT,
+		   OMAP44XX_REG_ZQ_ZQCL_MULT_MASK, REG_ZQ_ZQCL_MULT - 1);
+
+	mask_n_set(zq, OMAP44XX_REG_ZQ_ZQINIT_MULT_SHIFT,
+		   OMAP44XX_REG_ZQ_ZQINIT_MULT_MASK, REG_ZQ_ZQINIT_MULT - 1);
+
+	mask_n_set(zq, OMAP44XX_REG_ZQ_SFEXITEN_SHIFT,
+		   OMAP44XX_REG_ZQ_SFEXITEN_MASK, REG_ZQ_SFEXITEN_ENABLE);
+
+	/*
+	 * Assuming that two chipselects have a single calibration resistor
+	 * If there are indeed two calibration resistors, then this flag should
+	 * be enabled to take advantage of dual calibration feature.
+	 * This data should ideally come from board files. But considering
+	 * that none of the boards today have calibration resistors per CS,
+	 * it would be an unnecessary overhead.
+	 */
+	mask_n_set(zq, OMAP44XX_REG_ZQ_DUALCALEN_SHIFT,
+		   OMAP44XX_REG_ZQ_DUALCALEN_MASK, REG_ZQ_DUALCALEN_DISABLE);
+
+	mask_n_set(zq, OMAP44XX_REG_ZQ_CS0EN_SHIFT,
+		   OMAP44XX_REG_ZQ_CS0EN_MASK, REG_ZQ_CS0EN_ENABLE);
+
+	mask_n_set(zq, OMAP44XX_REG_ZQ_CS1EN_SHIFT,
+		   OMAP44XX_REG_ZQ_CS1EN_MASK, (cs1_device ? 1 : 0));
+
+	return zq;
 }
 
 static u32 get_temp_alert_config(const struct lpddr2_device_info *cs1_device,
