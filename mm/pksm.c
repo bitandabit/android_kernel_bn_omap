@@ -294,7 +294,7 @@ static unsigned int pksm_unshared_page_update_period = 10;
 #define KSM_RUN_STOP	0
 #define KSM_RUN_MERGE	1
 #define KSM_RUN_UNMERGE	2
-static unsigned int ksm_run = KSM_RUN_MERGE;
+static unsigned int ksm_run = KSM_RUN_STOP;
 
 /* The hash strength needed to hash a full page */
 #define RSAD_STRENGTH_FULL		(PAGE_SIZE / sizeof(u32))
