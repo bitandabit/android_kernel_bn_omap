@@ -657,6 +657,13 @@ CONFIG_CRYPTO_LZ4=y
 # CONFIG_CRYPTO_LZ4HC is not set
 
 #
+# Compression
+#
+CONFIG_CRYPTO_LZO=y
+CONFIG_CRYPTO_LZ4=y
+# CONFIG_CRYPTO_LZ4HC is not set
+
+#
 # Library routines
 #
 CONFIG_CRC_CCITT=y
