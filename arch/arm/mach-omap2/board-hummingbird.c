@@ -633,7 +633,7 @@ static void __init omap_hummingbird_reserve(void)
 	omap_init_ram_size();
 #ifdef CONFIG_ION_OMAP
 	hummingbird_android_display_setup(get_omap_ion_platform_data());
-	omap_ion_init();
+	omap4_ion_init();
 #else
 	hummingbird_android_display_setup(NULL);
 #endif
