@@ -112,7 +112,7 @@ void __init omap4_ion_init(void)
 		omap4_ion_heap_nonsec_tiler_mem_size = 0;
 		omap4_ion_heap_tiler_mem_size = 0;
 	} else {
-		omap4_ion_heap_secure_input_size = (SZ_1M * 48);
+		omap4_ion_heap_secure_input_size = (SZ_1M * 64);
 		omap4_ducati_heap_size = (SZ_1M * 48);
 		omap4_ion_heap_nonsec_tiler_mem_size = nonsecure;
 		omap4_ion_heap_tiler_mem_size =
