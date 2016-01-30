@@ -37,6 +37,7 @@
 #define PM_SUSPEND_MBOX		0xffffff07
 #define PM_SUSPEND_MBOX_FORCE	0xffffff09
 #define PM_SUSPEND_TIMEOUT	300
+#define RPROC_SUSPEND_TIMEOUT	30000
 
 struct omap_rproc_priv {
 	struct iommu *iommu;
@@ -602,7 +603,7 @@ static int omap_rproc_probe(struct platform_device *pdev)
 
 	return rproc_register(&pdev->dev, pdata->name, &omap_rproc_ops,
 				pdata->firmware, pdata->memory_pool,
-				THIS_MODULE, pdata->sus_timeout);
+				THIS_MODULE, RPROC_SUSPEND_TIMEOUT);
 }
 
 static int __devexit omap_rproc_remove(struct platform_device *pdev)
