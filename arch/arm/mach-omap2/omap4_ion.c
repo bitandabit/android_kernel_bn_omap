@@ -49,7 +49,7 @@ static size_t omap4_ion_ipu_cma_pages_count[2];
 static struct page* omap4_ion_ipu_cma_pages[2];
 
 /* See RPMSG_IPC_MEM calculation in arch/arm/plat-omap/omap_rpmsg.c */
-#define CMA_RPMSG_ADDR ((phys_addr_t)0xb3a00000)
+#define CMA_RPMSG_ADDR ((phys_addr_t)0xb8d00000)
 #define CMA_RPMSG_SIZE ((size_t)0x8c000)
 
 static phys_addr_t omap4_ion_rpmsg_cma_addr;
