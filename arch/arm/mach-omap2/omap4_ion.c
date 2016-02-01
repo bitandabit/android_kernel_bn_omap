@@ -111,7 +111,7 @@ void __init omap_ion_init(void)
 	system_512m = (omap_total_ram_size() == SZ_512M);
 
 	/* carveout sizes */
-	omap4_smc_size = 0;
+	omap4_smc_size = (SZ_1M * 3);
 
 	if (system_512m) {
 		omap4_ion_heap_secure_input_size = 0;
@@ -137,8 +137,8 @@ void __init omap_ion_init(void)
 	/* carveout addresses */
 	omap4_smc_addr = PLAT_PHYS_OFFSET + omap_total_ram_size() -
 				omap4_smc_size;
-	/* fixed start address of ducati heap */
-	omap4_ion_heap_secure_input_addr = 0xba300000;
+	omap4_ion_heap_secure_input_addr = omap4_smc_addr -
+				omap4_ion_heap_secure_input_size;
 	omap4_ion_heap_secure_output_wfdhdcp_addr =
 				omap4_ion_heap_secure_input_addr -
 				omap4_ion_heap_secure_output_wfdhdcp_size;
