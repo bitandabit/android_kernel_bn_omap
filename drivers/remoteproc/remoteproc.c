@@ -807,6 +807,11 @@ static int rproc_check_poolmem(struct rproc *rproc, u32 size, phys_addr_t pa)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_CMA_DEBUG
+	printk("pa 0x%x, pool->st_base 0x%x, size 0x%x, pool->st_size 0x%x\n",
+		pa, pool->st_base, size, pool->st_size);
+#endif
+
 	if (pa < pool->st_base || pa + size > pool->st_base + pool->st_size) {
 		pr_warn("section size does not fit within carveout memory\n");
 		return -ENOSPC;
