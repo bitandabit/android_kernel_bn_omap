@@ -7,7 +7,7 @@ obj-y := id.o io.o control.o mux.o devices.o serial.o gpmc.o timer.o pm.o \
 	 common.o gpio.o dma.o wd_timer.o display.o i2c.o
 
 omap-2-3-common				= irq.o sdrc.o
-hwmod-common				= omap_hwmod.o \
+hwmod-common				= omap_hwmod.o omap_hwmod_reset.o \
 					  omap_hwmod_common_data.o
 clock-common				= clock.o clock_common_data.o \
 					  clkt_dpll.o clkt_clksel.o
@@ -278,6 +278,25 @@ obj-$(CONFIG_MACH_OMAP_BLAZE)		+= board-44xx-tablet.o \
 
 obj-$(CONFIG_MACH_OMAP4_PANDA)		+= board-omap4panda.o
 
+obj-$(CONFIG_MACH_OMAP4_BOWSER)		+= board-bowser-idme.o
+obj-$(CONFIG_MACH_OMAP4_BOWSER_SUBTYPE_BOWSER7) += board-bowser.o \
+					   board-bowser-bluetooth.o \
+					   board-bowser-panel.o \
+					   board-bowser-wifi.o \
+					   board-44xx-serial.o
+
+obj-$(CONFIG_MACH_OMAP4_BOWSER_SUBTYPE_JEM) += board-jem.o \
+					   board-bowser-bluetooth.o \
+					   board-bowser-panel.o \
+					   board-bowser-wifi.o \
+					   board-44xx-serial.o
+
+obj-$(CONFIG_MACH_OMAP4_BOWSER_SUBTYPE_SOHO) += board-soho.o \
+					   board-bowser-bluetooth.o \
+					   board-bowser-panel.o \
+					   board-bowser-wifi.o \
+					   board-44xx-serial.o
+
 obj-$(CONFIG_MACH_PCM049)		+= board-omap4pcm049.o
 
 obj-$(CONFIG_MACH_OMAP3517EVM)		+= board-am3517evm.o
@@ -387,4 +406,9 @@ endif
 obj-$(CONFIG_ION_OMAP)			+= omap4_ion.o omap5_ion.o
 obj-$(CONFIG_OMAP_RAM_CONSOLE)		+= omap_ram_console.o
 obj-$(CONFIG_OMAP_REBOOT_REASON)	+= omap-reboot-reason.o
+obj-$(CONFIG_OMAP_RESET_REASON)		+= resetreason.o
+obj-$(CONFIG_OMAP4_CPU_PC_DUMP)		+= omap4_cpu_pc_dump.o
+
+# Touch
+obj-$(CONFIG_TOUCHSCREEN_CYPRESS_TTSP)  += board-touch-cyttsp4_core.o
 obj-$(CONFIG_ARCH_OMAP4) += omap_gcxxx.o

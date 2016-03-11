@@ -35,6 +35,7 @@
 #include <linux/list.h>
 #include <linux/ioport.h>
 #include <linux/spinlock.h>
+#include <linux/ktime.h>
 #include <plat/cpu.h>
 
 struct omap_device;
@@ -432,6 +433,7 @@ struct omap_hwmod_omap4_prcm {
 #define HWMOD_CONTROL_OPT_CLKS_IN_RESET		(1 << 7)
 #define HWMOD_16BIT_REG				(1 << 8)
 #define HWMOD_ACCESS_DISABLED			(1 << 9)
+#define HWMOD_MIN_TIME_STABLE			(1 << 10)
 
 /*
  * omap_hwmod._int_flags definitions
@@ -473,6 +475,7 @@ struct omap_hwmod_omap4_prcm {
  * @rev: revision of the IP class
  * @pre_shutdown: ptr to fn to be executed immediately prior to device shutdown
  * @reset: ptr to fn to be executed in place of the standard hwmod reset fn
+ * @enable_preprogram:  ptr to fn to be executed during device enable
  *
  * Represent the class of a OMAP hardware "modules" (e.g. timer,
  * smartreflex, gpio, uart...)
@@ -496,6 +499,7 @@ struct omap_hwmod_class {
 	u32					rev;
 	int					(*pre_shutdown)(struct omap_hwmod *oh);
 	int					(*reset)(struct omap_hwmod *oh);
+	int					(*enable_preprogram)(struct omap_hwmod *oh);
 };
 
 /**
@@ -570,6 +574,8 @@ struct omap_hwmod {
 	u8				_int_flags;
 	u8				_state;
 	u8				_postsetup_state;
+	u32				min_time_stable;	/* us */
+	ktime_t				last_switch;
 };
 
 int omap_hwmod_register(struct omap_hwmod **ohs);
@@ -646,6 +652,12 @@ int omap_hwmod_pad_wakeup_handler(struct omap_hwmod *oh, int pad_idx,
 		int (*wakeup_handler)(struct omap_hwmod_mux_info *hmux));
 
 const char *omap_hwmod_get_main_clk(struct omap_hwmod *oh);
+
+/*
+ *
+ */
+
+extern int omap_hwmod_aess_preprogram(struct omap_hwmod *oh);
 
 /*
  * Chip variant-specific hwmod init routines - XXX should be converted
