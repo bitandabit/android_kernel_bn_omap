@@ -770,8 +770,6 @@ static void vip_process_buffer_complete(struct vip_stream *stream)
 	struct vb2_buffer *vb = NULL;
 	unsigned long flags, fld;
 
-	buf = list_first_entry(&stream->post_bufs, struct vip_buffer, list);
-
 	if (stream->port->flags & FLAG_INTERLACED) {
 		vpdma_unmap_desc_buf(dev->shared->vpdma,
 					&stream->desc_list.buf);
@@ -781,6 +779,9 @@ static void vip_process_buffer_complete(struct vip_stream *stream)
 
 		vpdma_map_desc_buf(dev->shared->vpdma, &stream->desc_list.buf);
 	}
+
+	spin_lock_irqsave(&dev->slock, flags);
+	buf = list_first_entry(&stream->post_bufs, struct vip_buffer, list);
 
 	if (buf) {
 		vip_dbg(4, dev, "vip buffer complete 0x%x, 0x%x\n",
@@ -792,18 +793,15 @@ static void vip_process_buffer_complete(struct vip_stream *stream)
 		v4l2_get_timestamp(&vb->v4l2_buf.timestamp);
 
 		if (buf->drop) {
-			spin_lock_irqsave(&dev->slock, flags);
 			list_move_tail(&buf->list, &stream->dropq);
-			spin_unlock_irqrestore(&dev->slock, flags);
 		} else {
-			spin_lock_irqsave(&dev->slock, flags);
 			list_del(&buf->list);
-			spin_unlock_irqrestore(&dev->slock, flags);
 			vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 		}
 	} else {
 		BUG();
 	}
+	spin_unlock_irqrestore(&dev->slock, flags);
 
 	stream->sequence++;
 }
@@ -1494,8 +1492,10 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	set_fmt_params(stream);
 	vip_setup_parser(port);
 
+	spin_lock_irqsave(&dev->slock, flags);
 	buf = list_entry(stream->vidq.next,
 			 struct vip_buffer, list);
+	spin_unlock_irqrestore(&dev->slock, flags);
 
 	vip_dbg(2, dev, "start_streaming: buf 0x%x %d\n",
 		(unsigned int)buf, count);
@@ -1522,15 +1522,14 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	 */
 	dev->num_skip_irq = VIP_VPDMA_FIFO_SIZE;
 
-	spin_lock_irqsave(&dev->slock, flags);
 	if (vpdma_list_busy(dev->shared->vpdma, stream->list_num)) {
-		spin_unlock_irqrestore(&dev->slock, flags);
 		vpdma_unmap_desc_buf(dev->shared->vpdma,
 				&stream->desc_list.buf);
 		vpdma_reset_desc_list(&stream->desc_list);
 		return -EBUSY;
 	}
 
+	spin_lock_irqsave(&dev->slock, flags);
 	list_move_tail(&buf->list, &stream->post_bufs);
 	spin_unlock_irqrestore(&dev->slock, flags);
 
@@ -1560,6 +1559,7 @@ static int vip_stop_streaming(struct vb2_queue *vq)
 	struct vip_port *port = stream->port;
 	struct vip_dev *dev = port->dev;
 	struct vip_buffer *buf;
+	unsigned long flags;
 	int ret;
 
 	if (port->subdev) {
@@ -1573,6 +1573,7 @@ static int vip_stop_streaming(struct vb2_queue *vq)
 	stop_dma(stream);
 	clear_irqs(dev, dev->slice_id, stream->list_num);
 
+	spin_lock_irqsave(&dev->slock, flags);
 	/* release all active buffers */
 	while (!list_empty(&stream->post_bufs)) {
 		buf = list_entry(stream->post_bufs.next,
@@ -1588,6 +1589,7 @@ static int vip_stop_streaming(struct vb2_queue *vq)
 		list_del(&buf->list);
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
 	}
+	spin_unlock_irqrestore(&dev->slock, flags);
 
 	if (!vb2_is_streaming(vq))
 		return 0;
