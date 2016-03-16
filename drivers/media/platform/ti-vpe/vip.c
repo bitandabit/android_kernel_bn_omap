@@ -1537,7 +1537,6 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	vip_dbg(2, dev, "start_streaming: start_dma buf 0x%x\n",
 		(unsigned int)buf);
 
-	stop_dma(stream);
 	clear_irqs(dev, dev->slice_id, stream->list_num);
 	vip_enable_parser(port);
 	start_dma(stream, buf);
@@ -1570,6 +1569,7 @@ static int vip_stop_streaming(struct vb2_queue *vq)
 	}
 
 	disable_irqs(dev, dev->slice_id, stream->list_num);
+	synchronize_irq(dev->irq);
 	stop_dma(stream);
 	clear_irqs(dev, dev->slice_id, stream->list_num);
 
