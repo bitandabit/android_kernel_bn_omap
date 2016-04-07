@@ -268,6 +268,7 @@ inline struct vip_port *notifier_to_vip_port(struct v4l2_async_notifier *n)
  */
 static int alloc_port(struct vip_dev *, int);
 static void free_port(struct vip_port *);
+static bool vip_port_busy(struct vip_port *port);
 static int vip_setup_parser(struct vip_port *port);
 static void vip_enable_parser(struct vip_port *port);
 static void stop_dma(struct vip_stream *stream);
@@ -661,7 +662,7 @@ static void clear_irqs(struct vip_dev *dev, int irq_num, int list_num)
 
 	write_sreg(dev->shared, reg_addr, 1 << (list_num * 2));
 
-	vpdma_clear_list_stat(dev->shared->vpdma, irq_num, dev->slice_id);
+	vpdma_clear_list_stat(dev->shared->vpdma, irq_num, list_num);
 }
 
 static void populate_desc_list(struct vip_stream *stream)
@@ -845,8 +846,8 @@ static irqreturn_t vip_irq(int irq_vip, void *data)
 
 			vpdma_clear_list_stat(vpdma, irq_num, list_num);
 
-			if (dev->num_skip_irq)
-				dev->num_skip_irq--;
+			if (stream->num_skip_irq)
+				stream->num_skip_irq--;
 			else
 				vip_process_buffer_complete(stream);
 
@@ -1489,8 +1490,17 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (count <= VIP_VPDMA_FIFO_SIZE)
 		return -EINVAL;
 
-	set_fmt_params(stream);
-	vip_setup_parser(port);
+	if (port->subdev && !vip_port_busy(port)) {
+
+		set_fmt_params(stream);
+		vip_setup_parser(port);
+
+		ret = v4l2_subdev_call(port->subdev, video, s_stream, 1);
+		if (ret) {
+			vip_dbg(1, dev, "stream on failed in subdev\n");
+			return ret;
+		}
+	}
 
 	spin_lock_irqsave(&dev->slock, flags);
 	buf = list_entry(stream->vidq.next,
@@ -1503,14 +1513,6 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	stream->sequence = 0;
 	stream->field = V4L2_FIELD_TOP;
 
-	if (port->subdev) {
-		ret = v4l2_subdev_call(port->subdev, video, s_stream, 1);
-		if (ret) {
-			vip_dbg(1, dev, "stream on failed in subdev\n");
-			return ret;
-		}
-	}
-
 	populate_desc_list(stream);
 
 	/* The first few VPDMA ListComplete interrupts fire pretty quiclky
@@ -1520,7 +1522,7 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	 * only to queue up descriptors, and then they will also be used
 	 * as End of Frame (EOF) event
 	 */
-	dev->num_skip_irq = VIP_VPDMA_FIFO_SIZE;
+	stream->num_skip_irq = VIP_VPDMA_FIFO_SIZE;
 
 	if (vpdma_list_busy(dev->shared->vpdma, stream->list_num)) {
 		vpdma_unmap_desc_buf(dev->shared->vpdma,
@@ -1562,7 +1564,7 @@ static int vip_stop_streaming(struct vb2_queue *vq)
 	unsigned long flags;
 	int ret;
 
-	if (port->subdev) {
+	if (port->subdev && !vip_port_busy(port)) {
 		ret = v4l2_subdev_call(port->subdev, video, s_stream, 0);
 		if (ret)
 			vip_dbg(1, dev, "stream on failed in subdev\n");
@@ -1754,6 +1756,18 @@ static void vip_release_dev(struct vip_dev *dev)
 
 	if (--dev->num_ports == 0)
 		vip_set_clock_enable(dev, 0);
+}
+
+static bool vip_port_busy(struct vip_port *port)
+{
+	struct vip_stream *stream;
+	int i;
+	for (i = 0; i < VIP_CAP_STREAMS_PER_PORT; i++) {
+		stream = port->cap_streams[i];
+		if (stream && vb2_is_streaming(&stream->vb_vidq))
+			return true;
+	}
+	return false;
 }
 
 static int vip_setup_parser(struct vip_port *port)
