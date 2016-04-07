@@ -683,7 +683,7 @@ static void populate_desc_list(struct vip_stream *stream)
  * Should be called after a new vb is queued and on a vpdma list
  * completion interrupt.
  */
-static void start_dma(struct vip_stream *stream, struct vip_buffer *buf)
+static int start_dma(struct vip_stream *stream, struct vip_buffer *buf)
 {
 	struct vip_dev *dev = stream->port->dev;
 	struct vpdma_data *vpdma = dev->shared->vpdma;
@@ -693,7 +693,7 @@ static void start_dma(struct vip_stream *stream, struct vip_buffer *buf)
 
 	if (vpdma_list_busy(vpdma, list_num)) {
 		vip_err(dev, "vpdma list busy, cannot post");
-		return;				/* nothing to do */
+		return -EBUSY;				/* nothing to do */
 	}
 
 	if (buf) {
@@ -718,6 +718,7 @@ static void start_dma(struct vip_stream *stream, struct vip_buffer *buf)
 
 	vpdma_submit_descs(dev->shared->vpdma,
 			&stream->desc_list, stream->list_num);
+	return 0;
 }
 
 static void vip_schedule_next_buffer(struct vip_stream *stream)
@@ -1538,16 +1539,22 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	vip_dbg(2, dev, "start_streaming: start_dma buf 0x%x\n",
 		(unsigned int)buf);
 
-	clear_irqs(dev, dev->slice_id, stream->list_num);
 	vip_enable_parser(port);
-	start_dma(stream, buf);
 
-	/* We enable the irq after posting the vpdma descriptor
-	 * to prevent sprurious interrupt coming in before the
-	 * vb2 layer is completely ready to handle them
-	 * otherwise the vb2_streaming test would fail early on
-	  */
+	/* As the first few IRQs are fired quickly, we need vb2 layer ready
+	 * before the IRQ starts execution. The vb2 state machine is updated
+	 * after this this function returns, but it might not execute if the
+	 * IRQ is fired early.
+	 * Update the vb2 state to avoid this race condition
+	 */
+	vq->streaming = 1;
+	clear_irqs(dev, dev->slice_id, stream->list_num);
 	enable_irqs(dev, dev->slice_id, stream->list_num);
+	ret = start_dma(stream, buf);
+	if (ret) {
+		vq->streaming = 0;
+		return ret;
+	}
 
 	return 0;
 }
