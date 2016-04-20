@@ -622,9 +622,10 @@ static int omap4_pwrdm_wait_transition(struct powerdomain *pwrdm)
 
 static int omap4_check_vcvp(void)
 {
+#if 0
 	if (soc_is_dra7xx())
 		return 0;
-
+#endif
 	/* All others have VC/VP */
 	return 1;
 }
