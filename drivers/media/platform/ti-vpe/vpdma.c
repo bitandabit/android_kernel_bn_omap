@@ -407,10 +407,13 @@ int vpdma_list_cleanup(struct vpdma_data *vpdma, int list_num,
 {
 	struct vpdma_desc_list abort_list;
 	int i, ret, timeout = 500;
+	unsigned long flags;
 
+	spin_lock_irqsave(&vpdma->lock, flags);
 	write_reg(vpdma, VPDMA_LIST_ATTR,
 			(list_num << VPDMA_LIST_NUM_SHFT) |
 			(1 << VPDMA_LIST_STOP_SHFT));
+	spin_unlock_irqrestore(&vpdma->lock, flags);
 
 	if (size <= 0 || !channels)
 		return 0;
@@ -963,15 +966,18 @@ EXPORT_SYMBOL(vpdma_hwlist_release);
 void vpdma_enable_list_complete_irq(struct vpdma_data *vpdma, int irq_num,
 		int list_num, bool enable)
 {
+	unsigned long flags;
 	u32 reg_addr = VPDMA_INT_LIST0_MASK + VPDMA_INTX_OFFSET * irq_num;
 	u32 val;
 
+	spin_lock_irqsave(&vpdma->lock, flags);
 	val = read_reg(vpdma, reg_addr);
 	if (enable)
 		val |= (1 << (list_num * 2));
 	else
 		val &= ~(1 << (list_num * 2));
 	write_reg(vpdma, reg_addr, val);
+	spin_unlock_irqrestore(&vpdma->lock, flags);
 }
 EXPORT_SYMBOL(vpdma_enable_list_complete_irq);
 

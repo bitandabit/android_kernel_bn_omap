@@ -126,7 +126,6 @@ struct vip_dev {
 	spinlock_t		lock; /* used in videobuf2 callback */
 
 	int			irq;
-	int			num_skip_irq;
 	void __iomem		*base;
 
 	struct vb2_alloc_ctx	*alloc_ctx;
@@ -172,6 +171,7 @@ struct vip_stream {
 	struct vip_port		*port;
 	int			stream_id;
 	int			list_num;
+	int			num_skip_irq;
 	int			vfl_type;
 	enum v4l2_field		field;		/* current field */
 	unsigned int		sequence;	/* current frame/field seq */

@@ -269,6 +269,7 @@ inline struct vip_port *notifier_to_vip_port(struct v4l2_async_notifier *n)
  */
 static int alloc_port(struct vip_dev *, int);
 static void free_port(struct vip_port *);
+static bool vip_port_busy(struct vip_port *port);
 static int vip_setup_parser(struct vip_port *port);
 static void vip_enable_parser(struct vip_port *port);
 static void stop_dma(struct vip_stream *stream);
@@ -662,7 +663,7 @@ static void clear_irqs(struct vip_dev *dev, int irq_num, int list_num)
 
 	write_sreg(dev->shared, reg_addr, 1 << (list_num * 2));
 
-	vpdma_clear_list_stat(dev->shared->vpdma, irq_num, dev->slice_id);
+	vpdma_clear_list_stat(dev->shared->vpdma, irq_num, list_num);
 }
 
 static void populate_desc_list(struct vip_stream *stream)
@@ -683,7 +684,7 @@ static void populate_desc_list(struct vip_stream *stream)
  * Should be called after a new vb is queued and on a vpdma list
  * completion interrupt.
  */
-static void start_dma(struct vip_stream *stream, struct vip_buffer *buf)
+static int start_dma(struct vip_stream *stream, struct vip_buffer *buf)
 {
 	struct vip_dev *dev = stream->port->dev;
 	struct vpdma_data *vpdma = dev->shared->vpdma;
@@ -693,7 +694,7 @@ static void start_dma(struct vip_stream *stream, struct vip_buffer *buf)
 
 	if (vpdma_list_busy(vpdma, list_num)) {
 		vip_err(dev, "vpdma list busy, cannot post");
-		return;				/* nothing to do */
+		return -EBUSY;				/* nothing to do */
 	}
 
 	if (buf) {
@@ -718,6 +719,7 @@ static void start_dma(struct vip_stream *stream, struct vip_buffer *buf)
 
 	vpdma_submit_descs(dev->shared->vpdma,
 			&stream->desc_list, stream->list_num);
+	return 0;
 }
 
 static void vip_schedule_next_buffer(struct vip_stream *stream)
@@ -771,8 +773,6 @@ static void vip_process_buffer_complete(struct vip_stream *stream)
 	struct vb2_buffer *vb = NULL;
 	unsigned long flags, fld;
 
-	buf = list_first_entry(&stream->post_bufs, struct vip_buffer, list);
-
 	if (stream->port->flags & FLAG_INTERLACED) {
 		vpdma_unmap_desc_buf(dev->shared->vpdma,
 					&stream->desc_list.buf);
@@ -782,6 +782,9 @@ static void vip_process_buffer_complete(struct vip_stream *stream)
 
 		vpdma_map_desc_buf(dev->shared->vpdma, &stream->desc_list.buf);
 	}
+
+	spin_lock_irqsave(&dev->slock, flags);
+	buf = list_first_entry(&stream->post_bufs, struct vip_buffer, list);
 
 	if (buf) {
 		vip_dbg(4, dev, "vip buffer complete 0x%x, 0x%x\n",
@@ -793,18 +796,15 @@ static void vip_process_buffer_complete(struct vip_stream *stream)
 		v4l2_get_timestamp(&vb->v4l2_buf.timestamp);
 
 		if (buf->drop) {
-			spin_lock_irqsave(&dev->slock, flags);
 			list_move_tail(&buf->list, &stream->dropq);
-			spin_unlock_irqrestore(&dev->slock, flags);
 		} else {
-			spin_lock_irqsave(&dev->slock, flags);
 			list_del(&buf->list);
-			spin_unlock_irqrestore(&dev->slock, flags);
 			vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 		}
 	} else {
 		BUG();
 	}
+	spin_unlock_irqrestore(&dev->slock, flags);
 
 	stream->sequence++;
 }
@@ -848,8 +848,8 @@ static irqreturn_t vip_irq(int irq_vip, void *data)
 
 			vpdma_clear_list_stat(vpdma, irq_num, list_num);
 
-			if (dev->num_skip_irq)
-				dev->num_skip_irq--;
+			if (stream->num_skip_irq)
+				stream->num_skip_irq--;
 			else
 				vip_process_buffer_complete(stream);
 
@@ -1492,25 +1492,28 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (count <= VIP_VPDMA_FIFO_SIZE)
 		return -EINVAL;
 
-	set_fmt_params(stream);
-	vip_setup_parser(port);
+	if (port->subdev && !vip_port_busy(port)) {
 
-	buf = list_entry(stream->vidq.next,
-			 struct vip_buffer, list);
+		set_fmt_params(stream);
+		vip_setup_parser(port);
 
-	vip_dbg(2, dev, "start_streaming: buf 0x%x %d\n",
-		(unsigned int)buf, count);
-	buf->drop = false;
-	stream->sequence = 0;
-	stream->field = V4L2_FIELD_TOP;
-
-	if (port->subdev) {
 		ret = v4l2_subdev_call(port->subdev, video, s_stream, 1);
 		if (ret) {
 			vip_dbg(1, dev, "stream on failed in subdev\n");
 			return ret;
 		}
 	}
+
+	spin_lock_irqsave(&dev->slock, flags);
+	buf = list_entry(stream->vidq.next,
+			 struct vip_buffer, list);
+	spin_unlock_irqrestore(&dev->slock, flags);
+
+	vip_dbg(2, dev, "start_streaming: buf 0x%x %d\n",
+		(unsigned int)buf, count);
+	buf->drop = false;
+	stream->sequence = 0;
+	stream->field = V4L2_FIELD_TOP;
 
 	populate_desc_list(stream);
 
@@ -1521,34 +1524,38 @@ static int vip_start_streaming(struct vb2_queue *vq, unsigned int count)
 	 * only to queue up descriptors, and then they will also be used
 	 * as End of Frame (EOF) event
 	 */
-	dev->num_skip_irq = VIP_VPDMA_FIFO_SIZE;
+	stream->num_skip_irq = VIP_VPDMA_FIFO_SIZE;
 
-	spin_lock_irqsave(&dev->slock, flags);
 	if (vpdma_list_busy(dev->shared->vpdma, stream->list_num)) {
-		spin_unlock_irqrestore(&dev->slock, flags);
 		vpdma_unmap_desc_buf(dev->shared->vpdma,
 				&stream->desc_list.buf);
 		vpdma_reset_desc_list(&stream->desc_list);
 		return -EBUSY;
 	}
 
+	spin_lock_irqsave(&dev->slock, flags);
 	list_move_tail(&buf->list, &stream->post_bufs);
 	spin_unlock_irqrestore(&dev->slock, flags);
 
 	vip_dbg(2, dev, "start_streaming: start_dma buf 0x%x\n",
 		(unsigned int)buf);
 
-	stop_dma(stream);
-	clear_irqs(dev, dev->slice_id, stream->list_num);
 	vip_enable_parser(port);
-	start_dma(stream, buf);
 
-	/* We enable the irq after posting the vpdma descriptor
-	 * to prevent sprurious interrupt coming in before the
-	 * vb2 layer is completely ready to handle them
-	 * otherwise the vb2_streaming test would fail early on
-	  */
+	/* As the first few IRQs are fired quickly, we need vb2 layer ready
+	 * before the IRQ starts execution. The vb2 state machine is updated
+	 * after this this function returns, but it might not execute if the
+	 * IRQ is fired early.
+	 * Update the vb2 state to avoid this race condition
+	 */
+	vq->streaming = 1;
+	clear_irqs(dev, dev->slice_id, stream->list_num);
 	enable_irqs(dev, dev->slice_id, stream->list_num);
+	ret = start_dma(stream, buf);
+	if (ret) {
+		vq->streaming = 0;
+		return ret;
+	}
 
 	return 0;
 }
@@ -1562,18 +1569,21 @@ static int vip_stop_streaming(struct vb2_queue *vq)
 	struct vip_port *port = stream->port;
 	struct vip_dev *dev = port->dev;
 	struct vip_buffer *buf;
+	unsigned long flags;
 	int ret;
 
-	if (port->subdev) {
+	if (port->subdev && !vip_port_busy(port)) {
 		ret = v4l2_subdev_call(port->subdev, video, s_stream, 0);
 		if (ret)
 			vip_dbg(1, dev, "stream on failed in subdev\n");
 	}
 
 	disable_irqs(dev, dev->slice_id, stream->list_num);
+	synchronize_irq(dev->irq);
 	stop_dma(stream);
 	clear_irqs(dev, dev->slice_id, stream->list_num);
 
+	spin_lock_irqsave(&dev->slock, flags);
 	/* release all active buffers */
 	while (!list_empty(&stream->post_bufs)) {
 		buf = list_entry(stream->post_bufs.next,
@@ -1589,6 +1599,7 @@ static int vip_stop_streaming(struct vb2_queue *vq)
 		list_del(&buf->list);
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
 	}
+	spin_unlock_irqrestore(&dev->slock, flags);
 
 	if (!vb2_is_streaming(vq))
 		return 0;
@@ -1753,6 +1764,18 @@ static void vip_release_dev(struct vip_dev *dev)
 
 	if (--dev->num_ports == 0)
 		vip_set_clock_enable(dev, 0);
+}
+
+static bool vip_port_busy(struct vip_port *port)
+{
+	struct vip_stream *stream;
+	int i;
+	for (i = 0; i < VIP_CAP_STREAMS_PER_PORT; i++) {
+		stream = port->cap_streams[i];
+		if (stream && vb2_is_streaming(&stream->vb_vidq))
+			return true;
+	}
+	return false;
 }
 
 static int vip_setup_parser(struct vip_port *port)
