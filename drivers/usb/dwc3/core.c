@@ -32,6 +32,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/of.h>
+#include <linux/version.h>
 
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
@@ -114,6 +115,37 @@ static int dwc3_core_soft_reset(struct dwc3 *dwc)
 
 	return 0;
 }
+
+/**
+ * dwc3_device_soft_reset - Soft reset DWC3 device controller
+ * @dwc: Pointer to our controller context structure
+ *
+ * Returns 0 on success otherwise negative errno.
+ */
+static int dwc3_device_soft_reset(struct dwc3 *dwc)
+{
+	u32 reg;
+	unsigned long timeout;
+
+	timeout = jiffies + msecs_to_jiffies(500);
+	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
+	reg |= DWC3_DCTL_CSFTRST;
+	dwc3_writel(dwc->regs, DWC3_DCTL, reg);
+	do {
+		reg = dwc3_readl(dwc->regs, DWC3_DCTL);
+		if (!(reg & DWC3_DCTL_CSFTRST))
+			break;
+
+		if (time_after(jiffies, timeout)) {
+			dev_err(dwc->dev, "Reset Timed Out\n");
+			return -ETIMEDOUT;
+		}
+
+		cpu_relax();
+	} while (true);
+
+	return 0;
+};
 
 /**
  * dwc3_free_one_event_buffer - Frees one event buffer
@@ -432,47 +464,16 @@ static void dwc3_phy_setup(struct dwc3 *dwc)
 }
 
 /**
- * dwc3_core_init - Low-level initialization of DWC3 Core
+ * dwc3_get_gctl_quirks - Prepare GCTL register content with quirks
+ * and workarounds.
  * @dwc: Pointer to our controller context structure
  *
- * Returns 0 on success otherwise negative errno.
+ * Returns 32-bit content that must be written into GCTL by caller.
  */
-static int dwc3_core_init(struct dwc3 *dwc)
+static u32 dwc3_get_gctl_quirks(struct dwc3 *dwc)
 {
-	unsigned long		timeout;
-	u32			hwparams4 = dwc->hwparams.hwparams4;
-	u32			reg;
-	int			ret;
-
-	reg = dwc3_readl(dwc->regs, DWC3_GSNPSID);
-	/* This should read as U3 followed by revision number */
-	if ((reg & DWC3_GSNPSID_MASK) != 0x55330000) {
-		dev_err(dwc->dev, "this is not a DesignWare USB3 DRD Core\n");
-		ret = -ENODEV;
-		goto err0;
-	}
-	dwc->revision = reg;
-
-	/* issue device SoftReset too */
-	timeout = jiffies + msecs_to_jiffies(500);
-	dwc3_writel(dwc->regs, DWC3_DCTL, DWC3_DCTL_CSFTRST);
-	do {
-		reg = dwc3_readl(dwc->regs, DWC3_DCTL);
-		if (!(reg & DWC3_DCTL_CSFTRST))
-			break;
-
-		if (time_after(jiffies, timeout)) {
-			dev_err(dwc->dev, "Reset Timed Out\n");
-			ret = -ETIMEDOUT;
-			goto err0;
-		}
-
-		cpu_relax();
-	} while (true);
-
-	ret = dwc3_core_soft_reset(dwc);
-	if (ret)
-		goto err0;
+	u32		reg;
+	u32		hwparams4 = dwc->hwparams.hwparams4;
 
 	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
 	reg &= ~DWC3_GCTL_SCALEDOWN_MASK;
@@ -532,6 +533,45 @@ static int dwc3_core_init(struct dwc3 *dwc)
 	 */
 	if (dwc->revision < DWC3_REVISION_190A)
 		reg |= DWC3_GCTL_U2RSTECN;
+
+	return reg;
+}
+
+/**
+ * dwc3_core_init - Low-level initialization of DWC3 Core
+ * @dwc: Pointer to our controller context structure
+ *
+ * Returns 0 on success otherwise negative errno.
+ */
+static int dwc3_core_init(struct dwc3 *dwc)
+{
+	u32			reg;
+	int			ret;
+
+	reg = dwc3_readl(dwc->regs, DWC3_GSNPSID);
+	/* This should read as U3 followed by revision number */
+	if ((reg & DWC3_GSNPSID_MASK) != 0x55330000) {
+		dev_err(dwc->dev, "this is not a DesignWare USB3 DRD Core\n");
+		ret = -ENODEV;
+		goto err0;
+	}
+	dwc->revision = reg;
+
+	/*
+	 * Write Linux Version Code to our GUID register so it's easy to figure
+	 * out which kernel version a bug was found.
+	 */
+	dwc3_writel(dwc->regs, DWC3_GUID, LINUX_VERSION_CODE);
+
+	ret = dwc3_device_soft_reset(dwc);
+	if (ret)
+		goto err0;
+
+	ret = dwc3_core_soft_reset(dwc);
+	if (ret)
+		goto err0;
+
+	reg = dwc3_get_gctl_quirks(dwc);
 
 	dwc3_core_num_eps(dwc);
 
@@ -562,13 +602,15 @@ err0:
 	return ret;
 }
 
-/* Reset and re-initialize core. Can currently be called only
- * if dwc->current_mode == USB_DR_MODE_PERIPHERAL
+/**
+ * dwc3_device_reinit - Reset device controller and re-initialize.
+ * Can currently be called only if dwc->current_mode == USB_DR_MODE_PERIPHERAL
+ * @dwc: Pointer to our controller context structure
+ *
+ * Returns 0 on success otherwise negative errno.
  */
-int dwc3_core_reinit(struct dwc3 *dwc)
+int dwc3_device_reinit(struct dwc3 *dwc)
 {
-	unsigned long		timeout;
-	u32			hwparams4 = dwc->hwparams.hwparams4;
 	u32			reg;
 	int			ret;
 
@@ -580,83 +622,11 @@ int dwc3_core_reinit(struct dwc3 *dwc)
 
 	dwc3_free_scratch_buffers(dwc);
 
-	/* issue device SoftReset too */
-	timeout = jiffies + msecs_to_jiffies(500);
-	reg = dwc3_readl(dwc->regs, DWC3_DCTL);
-	reg |= DWC3_DCTL_CSFTRST;
-	dwc3_writel(dwc->regs, DWC3_DCTL, reg);
-	do {
-		reg = dwc3_readl(dwc->regs, DWC3_DCTL);
-		if (!(reg & DWC3_DCTL_CSFTRST))
-			break;
+	ret = dwc3_device_soft_reset(dwc);
+	if (ret)
+		return ret;
 
-		if (time_after(jiffies, timeout)) {
-			dev_err(dwc->dev, "Reset Timed Out\n");
-			return -ETIMEDOUT;
-		}
-
-		cpu_relax();
-	} while (true);
-
-	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
-	reg &= ~DWC3_GCTL_SCALEDOWN_MASK;
-
-	switch (DWC3_GHWPARAMS1_EN_PWROPT(dwc->hwparams.hwparams1)) {
-	case DWC3_GHWPARAMS1_EN_PWROPT_CLK:
-		/**
-		 * WORKAROUND: DWC3 revisions between 2.10a and 2.50a have an
-		 * issue which would cause xHCI compliance tests to fail.
-		 *
-		 * Because of that we cannot enable clock gating on such
-		 * configurations.
-		 *
-		 * Refers to:
-		 *
-		 * STAR#9000588375: Clock Gating, SOF Issues when ref_clk-Based
-		 * SOF/ITP Mode Used
-		 */
-		if ((dwc->dr_mode == USB_DR_MODE_HOST ||
-				dwc->dr_mode == USB_DR_MODE_OTG) &&
-				(dwc->revision >= DWC3_REVISION_210A &&
-				dwc->revision <= DWC3_REVISION_250A))
-			reg |= DWC3_GCTL_DSBLCLKGTNG | DWC3_GCTL_SOFITPSYNC;
-		else
-			reg &= ~DWC3_GCTL_DSBLCLKGTNG;
-		break;
-	case DWC3_GHWPARAMS1_EN_PWROPT_HIB:
-		/* enable hibernation here */
-		dwc->nr_scratch = DWC3_GHWPARAMS4_HIBER_SCRATCHBUFS(hwparams4);
-		break;
-	default:
-		dev_dbg(dwc->dev, "No power optimization available\n");
-	}
-
-	/* check if current dwc3 is on simulation board */
-	if (dwc->hwparams.hwparams6 & DWC3_GHWPARAMS6_EN_FPGA) {
-		dev_dbg(dwc->dev, "it is on FPGA board\n");
-		dwc->is_fpga = true;
-	}
-
-	WARN_ONCE(dwc->disable_scramble_quirk && !dwc->is_fpga,
-			"disable_scramble cannot be used on non-FPGA builds\n");
-
-	if (dwc->disable_scramble_quirk && dwc->is_fpga)
-		reg |= DWC3_GCTL_DISSCRAMBLE;
-	else
-		reg &= ~DWC3_GCTL_DISSCRAMBLE;
-
-	if (dwc->u2exit_lfps_quirk)
-		reg |= DWC3_GCTL_U2EXIT_LFPS;
-
-	/*
-	 * WORKAROUND: DWC3 revisions <1.90a have a bug
-	 * where the device can fail to connect at SuperSpeed
-	 * and falls back to high-speed mode which causes
-	 * the device to enter a Connect/Disconnect loop
-	 */
-	if (dwc->revision < DWC3_REVISION_190A)
-		reg |= DWC3_GCTL_U2RSTECN;
-
+	reg = dwc3_get_gctl_quirks(dwc);
 	dwc3_writel(dwc->regs, DWC3_GCTL, reg);
 
 	ret = dwc3_event_buffers_setup(dwc);
