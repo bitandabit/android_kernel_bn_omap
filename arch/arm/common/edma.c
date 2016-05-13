@@ -1614,8 +1614,12 @@ static struct edma_soc_info *edma_setup_info_from_dt(struct device *dev,
 
 	dma_cap_set(DMA_SLAVE, edma_filter_info.dma_cap);
 	dma_cap_set(DMA_CYCLIC, edma_filter_info.dma_cap);
-	of_dma_controller_register(dev->of_node, edma_of_xlate,
-				   &edma_filter_info);
+	if (of_machine_is_compatible("ti,dra7"))
+		of_dma_controller_register(dev->of_node, edma_of_xlate,
+					   &edma_filter_info);
+	else
+		of_dma_controller_register(dev->of_node, of_dma_simple_xlate,
+					   &edma_filter_info);
 
 	return info;
 }

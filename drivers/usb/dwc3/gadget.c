@@ -1603,7 +1603,8 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 {
 	struct dwc3		*dwc = gadget_to_dwc(g);
 	unsigned long		flags;
-	int			ret, trys = 0;
+	int			ret;
+	int			trys = 0;
 
 	is_on = !!is_on;
 
@@ -1642,18 +1643,19 @@ try:
 		if (devspd == DWC3_DCFG_SUPERSPEED)
 			goto done;
 
-		/* get link state */
-		ltssm = dwc3_readl(dwc->regs, DWC3_GDBGLTSSM);
-		ltssm = (ltssm >> 22) & 0xf;
-
 		/**
 		 * Need to wait for 100ms and check if ltssm != 4 to detect
 		 * metastability issue. If we got a reset event then we are
 		 * safe and can continue.
 		 */
-		t = wait_for_completion_timeout(&dwc->reset_event, msecs_to_jiffies(100));
+		t = wait_for_completion_timeout(&dwc->reset_event,
+						msecs_to_jiffies(100));
 		if (t)
 			goto done;
+
+		/* get link state */
+		ltssm = dwc3_readl(dwc->regs, DWC3_GDBGLTSSM);
+		ltssm = (ltssm >> 22) & 0xf;
 
 		/**
 		 * If link state != 4 we've hit the metastability issue, soft reset.
@@ -1661,12 +1663,12 @@ try:
 		if (ltssm == 4)
 			goto done;
 
-		dev_info(dwc->dev, "Applying metastability workaround. i819\n");
-
+		dev_err(dwc->dev,
+			   "applying metastability workaround\n");
 		trys++;
 		if (trys == 2) {
 			dev_WARN_ONCE(dwc->dev, true,
-				      "i819: metastability workaround failed\n");
+				      "metastability workaround failed!\n");
 			return -ETIMEDOUT;
 		}
 
@@ -1676,15 +1678,13 @@ try:
 		__dwc3_gadget_ep_disable(dwc->eps[0]);
 		__dwc3_gadget_ep_disable(dwc->eps[1]);
 
-		/* soft reset and restart */
-		ret = dwc3_core_reinit(dwc);
+		/* soft reset device and restart */
+		ret = dwc3_device_reinit(dwc);
 		if (ret) {
-			dev_err(dwc->dev, "core reinit failed\n");
+			dev_err(dwc->dev, "device reinit failed\n");
 			spin_unlock_irqrestore(&dwc->lock, flags);
 			return ret;
 		}
-
-		regx = dwc3_readl(dwc->regs, DWC3_DCTL);
 
 		reinit_completion(&dwc->reset_event);
 		/* restart gadget */
@@ -1695,7 +1695,6 @@ try:
 			return ret;
 		}
 
-		regx = dwc3_readl(dwc->regs, DWC3_DCTL);
 		spin_unlock_irqrestore(&dwc->lock, flags);
 		goto try;
 	}
@@ -1756,7 +1755,7 @@ static int dwc3_gadget_restart(struct dwc3 *dwc)
 	 * USB 2.0 Mode
 	 */
 	if ((dwc->revision < DWC3_REVISION_220A) &&
-	    (dwc->current_mode == DWC3_GCTL_PRTCAP_OTG)) {
+	     (dwc->current_mode == DWC3_GCTL_PRTCAP_OTG)) {
 		reg |= DWC3_DCFG_SUPERSPEED;
 	} else {
 		switch (dwc->maximum_speed) {
@@ -1807,7 +1806,6 @@ static int dwc3_gadget_restart(struct dwc3 *dwc)
 err:
 	__dwc3_gadget_ep_disable(dwc->eps[0]);
 	return ret;
-
 }
 
 static int dwc3_gadget_start(struct usb_gadget *g,
@@ -1818,7 +1816,7 @@ static int dwc3_gadget_start(struct usb_gadget *g,
 	int			ret = 0;
 	int			irq;
 
-	irq = platform_get_irq(to_platform_device(dwc->dev), 0);
+	irq = dwc->gadget_irq;
 	ret = request_threaded_irq(irq, dwc3_interrupt, dwc3_thread_interrupt,
 			IRQF_SHARED, "dwc3", dwc);
 	if (ret) {
@@ -2754,7 +2752,7 @@ static void dwc3_gadget_interrupt(struct dwc3 *dwc,
 		dev_vdbg(dwc->dev, "Start of Periodic Frame\n");
 		break;
 	case DWC3_DEVICE_EVENT_ERRATIC_ERROR:
-		dev_info(dwc->dev, "Erratic Error\n");
+		dev_err(dwc->dev, "Erratic Error\n");
 		break;
 	case DWC3_DEVICE_EVENT_CMD_CMPL:
 		dev_vdbg(dwc->dev, "Command Complete\n");

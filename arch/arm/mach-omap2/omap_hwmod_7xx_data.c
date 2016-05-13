@@ -729,73 +729,6 @@ static struct omap_hwmod dra7xx_dma_system_hwmod = {
 	.dev_attr	= &dma_dev_attr,
 };
 
-/* tpcc */
-static struct omap_hwmod_class dra7xx_tpcc_hwmod_class = {
-	.name		= "tpcc",
-};
-
-struct omap_hwmod dra7xx_tpcc_hwmod = {
-	.name		= "tpcc",
-	.class		= &dra7xx_tpcc_hwmod_class,
-	.clkdm_name	= "l3main1_clkdm",
-	.main_clk	= "l3_iclk_div",
-	.prcm		= {
-		.omap4	= {
-			.modulemode	= MODULEMODE_SWCTRL,
-		},
-	},
-};
-
-/* 'tptc' class */
-static struct omap_hwmod_class dra7xx_tptc_hwmod_class = {
-	.name		= "tptc",
-};
-
-/* tptc0 */
-struct omap_hwmod dra7xx_tptc0_hwmod = {
-	.name		= "tptc0",
-	.class		= &dra7xx_tptc_hwmod_class,
-	.clkdm_name	= "l3main1_clkdm",
-	.flags		= HWMOD_SWSUP_SIDLE | HWMOD_SWSUP_MSTANDBY |
-			  HWMOD_NEEDS_REIDLE,
-	.main_clk	= "l3_iclk_div",
-	.prcm		= {
-		.omap4	= {
-			.modulemode	= MODULEMODE_SWCTRL,
-		},
-	},
-};
-
-/* tptc1 */
-struct omap_hwmod dra7xx_tptc1_hwmod = {
-	.name		= "tptc1",
-	.class		= &dra7xx_tptc_hwmod_class,
-	.clkdm_name	= "l3main1_clkdm",
-	.flags		= HWMOD_SWSUP_SIDLE | HWMOD_SWSUP_MSTANDBY |
-			  HWMOD_NEEDS_REIDLE,
-	.main_clk	= "l3_iclk_div",
-	.prcm		= {
-		.omap4	= {
-			.modulemode	= MODULEMODE_SWCTRL,
-		},
-	},
-};
-
-/* tptc2 */
-struct omap_hwmod dra7xx_tptc2_hwmod = {
-	.name		= "tptc2",
-	.class		= &dra7xx_tptc_hwmod_class,
-	.clkdm_name	= "l3main1_clkdm",
-	.flags		= HWMOD_SWSUP_SIDLE | HWMOD_SWSUP_MSTANDBY |
-			  HWMOD_NEEDS_REIDLE,
-	.main_clk	= "l3_iclk_div",
-	.prcm		= {
-		.omap4	= {
-			.modulemode	= MODULEMODE_SWCTRL,
-		},
-	},
-};
-
 /*
  * 'dsp' class
  * dsp sub-system
@@ -839,6 +772,70 @@ static struct omap_hwmod dra7xx_dsp2_hwmod = {
 			.clkctrl_offs = DRA7XX_CM_DSP2_DSP2_CLKCTRL_OFFSET,
 			.rstctrl_offs = DRA7XX_RM_DSP2_RSTCTRL_OFFSET,
 			.context_offs = DRA7XX_RM_DSP2_DSP2_CONTEXT_OFFSET,
+		},
+	},
+};
+
+/*
+ * 'tpcc' class
+ *
+ */
+static struct omap_hwmod_class dra7xx_tpcc_hwmod_class = {
+	.name		= "tpcc",
+};
+
+static struct omap_hwmod dra7xx_tpcc_hwmod = {
+	.name		= "tpcc",
+	.class		= &dra7xx_tpcc_hwmod_class,
+	.clkdm_name	= "l3main1_clkdm",
+	.main_clk	= "l3_iclk_div",
+	.prcm		= {
+		.omap4	= {
+			.clkctrl_offs = DRA7XX_CM_L3MAIN1_TPCC_CLKCTRL_OFFSET,
+			.context_offs = DRA7XX_RM_L3MAIN1_TPCC_CONTEXT_OFFSET,
+			.modulemode   = MODULEMODE_HWCTRL,
+		},
+	},
+};
+
+/*
+ * 'tptc' class
+ *
+ */
+static struct omap_hwmod_class dra7xx_tptc_hwmod_class = {
+	.name		= "tptc",
+};
+
+/* tptc0 */
+static struct omap_hwmod dra7xx_tptc0_hwmod = {
+	.name		= "tptc0",
+	.class		= &dra7xx_tptc_hwmod_class,
+	.clkdm_name	= "l3main1_clkdm",
+	.flags		= HWMOD_SWSUP_SIDLE | HWMOD_SWSUP_MSTANDBY |
+			  HWMOD_NEEDS_REIDLE,
+	.main_clk	= "l3_iclk_div",
+	.prcm		= {
+		.omap4	= {
+			.clkctrl_offs = DRA7XX_CM_L3MAIN1_TPTC1_CLKCTRL_OFFSET,
+			.context_offs = DRA7XX_RM_L3MAIN1_TPTC1_CONTEXT_OFFSET,
+			.modulemode   = MODULEMODE_HWCTRL,
+		},
+	},
+};
+
+/* tptc1 */
+static struct omap_hwmod dra7xx_tptc1_hwmod = {
+	.name		= "tptc1",
+	.class		= &dra7xx_tptc_hwmod_class,
+	.clkdm_name	= "l3main1_clkdm",
+	.flags		= HWMOD_SWSUP_SIDLE | HWMOD_SWSUP_MSTANDBY |
+			  HWMOD_NEEDS_REIDLE,
+	.main_clk	= "l3_iclk_div",
+	.prcm		= {
+		.omap4	= {
+			.clkctrl_offs = DRA7XX_CM_L3MAIN1_TPTC2_CLKCTRL_OFFSET,
+			.context_offs = DRA7XX_RM_L3MAIN1_TPTC2_CONTEXT_OFFSET,
+			.modulemode   = MODULEMODE_HWCTRL,
 		},
 	},
 };
@@ -3519,7 +3516,7 @@ static struct omap_hwmod_ocp_if dra7xx_l4_cfg__dma_system = {
 
 
 /* l4_cfg -> tpcc */
-struct omap_hwmod_ocp_if dra7xx_l4_cfg__tpcc = {
+static struct omap_hwmod_ocp_if dra7xx_l4_cfg__tpcc = {
 	.master		= &dra7xx_l4_cfg_hwmod,
 	.slave		= &dra7xx_tpcc_hwmod,
 	.clk		= "l3_iclk_div",
@@ -3536,7 +3533,7 @@ static struct omap_hwmod_addr_space dra7xx_tptc0_addr_space[] = {
 	{ }
 };
 
-struct omap_hwmod_ocp_if dra7xx_l4_cfg__tptc0 = {
+static struct omap_hwmod_ocp_if dra7xx_l4_cfg__tptc0 = {
 	.master		= &dra7xx_l4_cfg_hwmod,
 	.slave		= &dra7xx_tptc0_hwmod,
 	.clk		= "l3_iclk_div",
