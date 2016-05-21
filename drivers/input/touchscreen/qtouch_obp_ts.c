@@ -879,6 +879,12 @@ static int qtouch_ts_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
+	qtouch_ts_wq = create_singlethread_workqueue("qtouch_obp_ts_wq");
+	if (qtouch_ts_wq == NULL) {
+		pr_err("%s: No memory for qtouch_ts_wq\n", __func__);
+		return -ENOMEM;
+	}
+
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("%s: need I2C_FUNC_I2C\n", __func__);
 		return -ENODEV;
@@ -1013,6 +1019,8 @@ err_process_info_block:
 err_alloc_input_dev:
 	i2c_set_clientdata(client, NULL);
 	kfree(ts);
+	if (qtouch_ts_wq)
+		destroy_workqueue(qtouch_ts_wq);
 
 err_alloc_data_failed:
 	return err;
@@ -1028,6 +1036,8 @@ static int qtouch_ts_remove(struct i2c_client *client)
 	input_free_device(ts->input_dev);
 	i2c_set_clientdata(client, NULL);
 	kfree(ts);
+	if (qtouch_ts_wq)
+		destroy_workqueue(qtouch_ts_wq);
 	return 0;
 }
 
@@ -1128,19 +1138,12 @@ static struct i2c_driver qtouch_ts_driver = {
 
 static int __devinit qtouch_ts_init(void)
 {
-	qtouch_ts_wq = create_singlethread_workqueue("qtouch_obp_ts_wq");
-	if (qtouch_ts_wq == NULL) {
-		pr_err("%s: No memory for qtouch_ts_wq\n", __func__);
-		return -ENOMEM;
-	}
 	return i2c_add_driver(&qtouch_ts_driver);
 }
 
 static void __exit qtouch_ts_exit(void)
 {
 	i2c_del_driver(&qtouch_ts_driver);
-	if (qtouch_ts_wq)
-		destroy_workqueue(qtouch_ts_wq);
 }
 
 module_init(qtouch_ts_init);

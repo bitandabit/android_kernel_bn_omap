@@ -788,14 +788,6 @@ static struct clk virt_dsp_ck = {
 	.set_rate	= &omap4_virt_dsp_set_rate,
 };
 
-static struct clk virt_lcd_pclk = {
-	.name		= "virt_lcd_pclk",
-	.parent		= NULL,
-	.ops		= &clkops_null,
-	.round_rate	= &clk_dummy_round_rate,
-	.set_rate	= &clk_dummy_set_rate,
-};
-
 /* DPLL_MPU */
 static struct dpll_data dpll_mpu_dd = {
 	.mult_div1_reg	= OMAP4430_CM_CLKSEL_DPLL_MPU,
@@ -1679,6 +1671,9 @@ static struct clk dss_dss_clk = {
 	.enable_reg	= OMAP4430_CM_DSS_DSS_CLKCTRL,
 	.enable_bit	= OMAP4430_OPTFCLKEN_DSSCLK_SHIFT,
 	.clkdm_name	= "l3_dss_clkdm",
+#ifdef CONFIG_FB_OMAP_BOOTLOADER_INIT
+	.flags          = ENABLE_ON_INIT,
+#endif
 	.parent		= &dpll_per_m5x2_ck,
 	.recalc		= &followparent_recalc,
 	.speculate	= &omap2_clksel_speculate,
@@ -3562,7 +3557,6 @@ static struct omap_clk omap44xx_clks[] = {
 	CLK(NULL,	"dpll_iva_m5x2_ck",		&dpll_iva_m5x2_ck,	CK_44XX),
 	CLK(NULL,	"virt_iva_ck",			&virt_iva_ck,	CK_44XX),
 	CLK(NULL,	"virt_dsp_ck",			&virt_dsp_ck,	CK_44XX),
-	CLK(NULL,	"virt_lcd_pclk",		&virt_lcd_pclk,	CK_44XX),
 	CLK(NULL,	"dpll_mpu_ck",			&dpll_mpu_ck,	CK_44XX),
 	CLK(NULL,	"virt_dpll_mpu_ck",		&virt_dpll_mpu_ck,	(CK_446X | CK_447X)),
 	CLK(NULL,	"dpll_mpu_m2_ck",		&dpll_mpu_m2_ck,	CK_44XX),

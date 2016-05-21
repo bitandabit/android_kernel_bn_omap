@@ -249,6 +249,7 @@ struct omap_hsmmc_host {
 	int			use_reg;
 	int			req_in_progress;
 	unsigned int		flags;
+	int			shutdown;
 	unsigned int		errata;
 
 	struct	omap_mmc_platform_data	*pdata;
@@ -904,6 +905,9 @@ omap_hsmmc_start_command(struct omap_hsmmc_host *host, struct mmc_command *cmd,
 {
 	int cmdreg = 0, resptype = 0, cmdtype = 0;
 
+	if (host->shutdown)
+		return;
+
 	dev_dbg(mmc_dev(host->mmc), "%s: CMD%d, argument 0x%08x\n",
 		mmc_hostname(host->mmc), cmd->opcode, cmd->arg);
 	host->cmd = cmd;
@@ -1169,6 +1173,20 @@ static inline void omap_hsmmc_reset_controller_fsm(struct omap_hsmmc_host *host,
 		dev_err(mmc_dev(host->mmc),
 			"Timeout waiting on controller reset in %s\n",
 			__func__);
+}
+
+static void omap_hsmmc_recover(struct mmc_host *mmc)
+{
+	struct omap_hsmmc_host *host = mmc_priv(mmc);
+
+	omap_hsmmc_disable_irq(host);
+	host->req_in_progress = 0;
+	host->mrq = NULL;
+	host->cmd = NULL;
+	host->data = NULL;
+	omap_hsmmc_reset_controller_fsm(host,SRC);
+	omap_hsmmc_reset_controller_fsm(host,SRD);
+	printk("%s\n",__func__);
 }
 
 static void omap_hsmmc_do_irq(struct omap_hsmmc_host *host, int status)
@@ -1664,6 +1682,9 @@ static void set_data_timeout(struct omap_hsmmc_host *host,
 			dto += 1;
 			timeout <<= 1;
 		}
+
+		dto = 14;
+		/*
 		dto = 31 - dto;
 		timeout <<= 1;
 		if (timeout && dto)
@@ -1674,6 +1695,7 @@ static void set_data_timeout(struct omap_hsmmc_host *host,
 			dto = 0;
 		if (dto > 14)
 			dto = 14;
+		*/
 	}
 
 	reg &= ~DTO_MASK;
@@ -1689,6 +1711,9 @@ omap_hsmmc_prepare_data(struct omap_hsmmc_host *host, struct mmc_request *req)
 {
 	int ret;
 	int numblks;
+
+	if (host->shutdown)
+		return 0;
 
 	host->data = req->data;
 
@@ -2251,6 +2276,7 @@ static const struct mmc_host_ops omap_hsmmc_ops = {
 	.enable = omap_hsmmc_enable_simple,
 	.disable = omap_hsmmc_disable_simple,
 	.request = omap_hsmmc_request,
+	.recover = omap_hsmmc_recover,
 	.set_ios = omap_hsmmc_set_ios,
 	.get_cd = omap_hsmmc_get_cd,
 	.get_ro = omap_hsmmc_get_ro,
@@ -2422,6 +2448,7 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 	}
 	host->power_mode = MMC_POWER_OFF;
 	host->flags	= AUTO_CMD12;
+	host->shutdown = 0;
 
 	host->errata = 0;
 	if (cpu_is_omap44xx())
@@ -2846,6 +2873,46 @@ static int omap_hsmmc_runtime_resume(struct device *dev)
 	return 0;
 }
 
+static void omap_hsmmc_shutdown(struct platform_device *pdev)
+{
+	struct mmc_host *mmc = NULL;
+	struct omap_hsmmc_host *host = platform_get_drvdata(pdev);
+	int err = 0;
+
+	if (host->id != OMAP_MMC2_DEVID){/*sdcard or wifi emmc*/
+		return;
+	}
+
+	dev_info(&pdev->dev, "shutting down mmc\n");
+
+	mmc = host->mmc;
+
+	if (mmc_card_can_sleep(host->mmc)) {
+		mmc->caps &= ~MMC_CAP_WAIT_WHILE_BUSY;
+		err = mmc_card_sleep(host->mmc);
+		mmc->caps |= MMC_CAP_WAIT_WHILE_BUSY;
+		if (err) {
+			dev_dbg(mmc_dev(host->mmc),"MMC sleep command CMD5 returned error: %d", err);
+		}
+	}
+
+	host->shutdown = 1;
+
+	if (host->pdata->suspend) {//disable card_detect_irq
+		err = host->pdata->suspend(&pdev->dev, host->slot_id);
+		if (err) {
+			dev_dbg(mmc_dev(host->mmc),
+				"Unable to handle MMC board"
+				" level suspend: %d", err);
+		}
+	}
+	cancel_work_sync(&host->mmc_carddetect_work);
+
+	if (mmc->caps & MMC_CAP_DISABLE)
+		cancel_delayed_work(&mmc->disable);
+	cancel_delayed_work(&mmc->detect);
+	mmc_flush_scheduled_work();
+}
 
 static struct dev_pm_ops omap_hsmmc_dev_pm_ops = {
 	.suspend	= omap_hsmmc_suspend,
@@ -2856,6 +2923,7 @@ static struct dev_pm_ops omap_hsmmc_dev_pm_ops = {
 
 static struct platform_driver omap_hsmmc_driver = {
 	.remove		= omap_hsmmc_remove,
+	.shutdown       = omap_hsmmc_shutdown,
 	.driver		= {
 		.name = DRIVER_NAME,
 		.owner = THIS_MODULE,

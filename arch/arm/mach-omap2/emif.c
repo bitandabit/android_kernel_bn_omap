@@ -73,30 +73,6 @@ static struct omap_device_pm_latency omap_emif_latency[] = {
 #define EMIF_ERRATUM_SR_TIMER_i735	BIT(0)
 #define EMIF_ERRATUM_SR_TIMER_MIN	6
 
-/*
- * TI Errata i743 - LPDDR2 Power-Down State is Not Efficient
- * IMPACTED: OMAP4430 and OMAP4460 all revisions
- * The EMIF supports power-down state for low power. The EMIF automatically
- * puts the SDRAM into power-down after the memory is not accessed for a
- * defined number of cycles and the EMIF_PWR_MGMT_CTRL[10:8] REG_LP_MODE bit
- * field is set to 0x4.
- * As the EMIF supports automatic output impedance calibration, a ZQ
- * calibration long command is issued every time it exits active power-down
- * and precharge power-down modes. The EMIF waits and blocks any other command
- * during this calibration.
- * The EMIF does not allow selective disabling of ZQ calibration upon exit of
- * power-down mode. Due to very short periods of power-down cycles,
- * ZQ calibration overhead creates bandwidth issues and increases overall
- * system power consumption. On the other hand, issuing ZQ calibration
- * long commands when exiting self-refresh is still required.
- *
- * W/A: Because there is no power consumption benefit of the power-down due to
- * the calibration and there is a performance risk, the guideline is to not
- * allow power-down state and, therefore, to not have set the
- * EMIF_PWR_MGMT_CTRL[10:8] REG_LP_MODE bit field to 0x4.
- */
-#define EMIF_ERRATUM_POWER_DOWN_NOT_EFFICIENT_i743	BIT(1)
-
 static u32 emif_errata;
 #define is_emif_erratum(erratum) (emif_errata & EMIF_ERRATUM_##erratum)
 
@@ -427,7 +403,8 @@ static u32 get_sdram_tim_3_reg(const struct lpddr2_timings *timings,
 	mask_n_set(tim3, OMAP44XX_REG_T_RFC_SHIFT, OMAP44XX_REG_T_RFC_MASK,
 		   val);
 
-	val = ns_x2_2_cycles(timings->tDQSCKMAXx2) - 1;
+	/* Updated by Anand */
+	val = ns_x2_2_cycles(timings->tDQSCKMAXx2 + 2) - 1;
 	mask_n_set(tim3, OMAP44XX_REG_T_TDQSCKMAX_SHIFT,
 		   OMAP44XX_REG_T_TDQSCKMAX_MASK, val);
 
@@ -545,6 +522,8 @@ static u32 get_ddr_phy_ctrl_1(u32 freq, u8 RL)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_100_MHZ_AND_LESS;
 	else if (freq <= 200000000)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_200_MHZ;
+	else if (freq <= 233333333)
+		val = EMIF_DLL_SLAVE_DLY_CTRL_233_MHZ;
 	else if (freq <= 400000000)
 		val = EMIF_DLL_SLAVE_DLY_CTRL_400_MHZ;
 	else
@@ -592,17 +571,6 @@ static void set_lp_mode(u32 emif_nr, u32 lpmode)
 {
 	u32 temp;
 	void __iomem *base = emif[emif_nr].base;
-
-	if (is_emif_erratum(POWER_DOWN_NOT_EFFICIENT_i743) &&
-		(LP_MODE_PWR_DN == lpmode)) {
-
-		WARN_ONCE(1, "%s: Power-down mode"
-			" REG_LP_MODE = LP_MODE_PWR_DN(0x4) is prohibited by "
-			" erratum i743 switch to LP_MODE_SELF_REFRESH(0x2)",
-			__func__);
-		/* rallback LP_MODE to Self-refresh mode */
-		lpmode = LP_MODE_SELF_REFRESH;
-	}
 
 	/* Extract current lp mode value */
 	temp = readl(base + OMAP44XX_EMIF_PWR_MGMT_CTRL);
@@ -1045,6 +1013,19 @@ static void emif_calculate_regs(const struct emif_device_details *devices,
 
 	regs->ref_ctrl = get_sdram_ref_ctrl(freq, addressing);
 	regs->ref_ctrl_derated = regs->ref_ctrl / 4;
+	switch (freq) {
+	case LPDDR2_466MHZ:
+		regs->ref_ctrl -= 2;
+		break;
+	case LPDDR2_233MHZ:
+		regs->ref_ctrl -= 1;
+		break;
+	default:
+		break;
+	}
+
+	pr_debug("\nEMIF freq=%d ref_ctrl=0x%x derated=0x%x\n",
+				freq, regs->ref_ctrl, regs->ref_ctrl_derated);
 
 	regs->sdram_tim1 = get_sdram_tim_1_reg(timings, min_tck, addressing);
 
@@ -1053,7 +1034,20 @@ static void emif_calculate_regs(const struct emif_device_details *devices,
 
 	regs->sdram_tim2 = get_sdram_tim_2_reg(timings, min_tck);
 
-	regs->sdram_tim3 = get_sdram_tim_3_reg(timings, min_tck, addressing);
+	switch (freq) {
+	case LPDDR2_466MHZ:
+		regs->sdram_tim3 = 0x00D4E3CF;
+		break;
+	case LPDDR2_233MHZ:
+		regs->sdram_tim3 = 0x006A21EF;
+		break;
+	default:
+		regs->sdram_tim3 =
+			get_sdram_tim_3_reg(timings, min_tck, addressing);
+		break;
+	}
+
+	pr_debug("\nSDRAM_TIM_3=0x%x\n", regs->sdram_tim3);
 
 	regs->read_idle_ctrl_normal =
 	    get_read_idle_ctrl_reg(LPDDR2_VOLTAGE_STABLE);
@@ -1224,9 +1218,6 @@ static void __init emif_setup_errata(void)
 {
 	if (cpu_is_omap44xx())
 		emif_errata |= EMIF_ERRATUM_SR_TIMER_i735;
-
-	if (cpu_is_omap443x() || cpu_is_omap446x())
-		emif_errata |= EMIF_ERRATUM_POWER_DOWN_NOT_EFFICIENT_i743;
 }
 
 /*
@@ -1589,3 +1580,15 @@ static int __init omap_init_emif_timings(void)
 	return ret;
 }
 late_initcall(omap_init_emif_timings);
+
+int sdram_vendor(void)
+{
+	int ddr_manufact_id = 0;
+	void __iomem *base;
+
+	base = emif[EMIF1].base;
+	__raw_writel(LPDDR2_MR5, base + OMAP44XX_EMIF_LPDDR2_MODE_REG_CFG);
+	ddr_manufact_id =  __raw_readb(base  +  OMAP44XX_EMIF_LPDDR2_MODE_REG_DATA);
+
+	return ddr_manufact_id;
+}

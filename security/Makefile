@@ -27,3 +27,5 @@ obj-$(CONFIG_CGROUP_DEVICE)		+= device_cgroup.o
 subdir-$(CONFIG_IMA)			+= integrity/ima
 obj-$(CONFIG_IMA)			+= integrity/ima/built-in.o
 obj-$(CONFIG_SECURITY_MIDDLEWARE_COMPONENT)     += smc/
+subdir-$(CONFIG_BN_FACTORY_PROV)	+= bnprov/
+obj-$(CONFIG_BN_FACTORY_PROV)		+= bnprov/bn_factory_prov.o

@@ -140,6 +140,7 @@ struct mmc_host_ops {
 	int	(*start_signal_voltage_switch)(struct mmc_host *host, struct mmc_ios *ios);
 	int	(*execute_tuning)(struct mmc_host *host);
 	void	(*enable_preset_value)(struct mmc_host *host, bool enable);
+	int	(*recover)(struct mmc_host *host);
 };
 
 struct mmc_card;
@@ -343,6 +344,7 @@ extern int mmc_power_restore_host(struct mmc_host *host);
 
 extern void mmc_detect_change(struct mmc_host *, unsigned long delay);
 extern void mmc_request_done(struct mmc_host *, struct mmc_request *);
+extern void mmc_flush_scheduled_work(void);
 
 static inline void mmc_signal_sdio_irq(struct mmc_host *host)
 {

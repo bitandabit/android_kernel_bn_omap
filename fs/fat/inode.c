@@ -37,6 +37,8 @@
 static int fat_default_codepage = CONFIG_FAT_DEFAULT_CODEPAGE;
 static char fat_default_iocharset[] = CONFIG_FAT_DEFAULT_IOCHARSET;
 
+extern void set_fatsdcard_id(long);
+extern void clear_fatsdcard_id();
 
 static int fat_add_cluster(struct inode *inode)
 {
@@ -500,6 +502,7 @@ static void fat_put_super(struct super_block *sb)
 
 	sb->s_fs_info = NULL;
 	kfree(sbi);
+	clear_fatsdcard_id();
 }
 
 static struct kmem_cache *fat_inode_cachep;
@@ -1515,6 +1518,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 		goto out_fail;
 	}
 
+	set_fatsdcard_id(sbi->vol_id);
 	return 0;
 
 out_invalid:

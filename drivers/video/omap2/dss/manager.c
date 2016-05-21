@@ -285,7 +285,7 @@ static ssize_t manager_alpha_blending_enabled_store(
 static ssize_t manager_cpr_enable_show(struct omap_overlay_manager *mgr,
 		char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%d\n", mgr->info.cpr_enable);
+	return snprintf(buf, PAGE_SIZE, "%d\n", mgr->info.cpr_enable_sys);
 }
 
 static ssize_t manager_cpr_enable_store(struct omap_overlay_manager *mgr,
@@ -307,9 +307,11 @@ static ssize_t manager_cpr_enable_store(struct omap_overlay_manager *mgr,
 
 	mgr->get_manager_info(mgr, &info);
 
-	if (info.cpr_enable == enable)
+	if (info.cpr_enable_sys == enable)
 		return size;
 
+	info.cpr_enable_sys = enable;
+	// sysfs calls clobbers any dsscomp merged values
 	info.cpr_enable = enable;
 
 	r = mgr->set_manager_info(mgr, &info);
@@ -332,15 +334,15 @@ static ssize_t manager_cpr_coef_show(struct omap_overlay_manager *mgr,
 
 	return snprintf(buf, PAGE_SIZE,
 			"%d %d %d %d %d %d %d %d %d\n",
-			info.cpr_coefs.rr,
-			info.cpr_coefs.rg,
-			info.cpr_coefs.rb,
-			info.cpr_coefs.gr,
-			info.cpr_coefs.gg,
-			info.cpr_coefs.gb,
-			info.cpr_coefs.br,
-			info.cpr_coefs.bg,
-			info.cpr_coefs.bb);
+			info.cpr_coefs_sys.rr,
+			info.cpr_coefs_sys.rg,
+			info.cpr_coefs_sys.rb,
+			info.cpr_coefs_sys.gr,
+			info.cpr_coefs_sys.gg,
+			info.cpr_coefs_sys.gb,
+			info.cpr_coefs_sys.br,
+			info.cpr_coefs_sys.bg,
+			info.cpr_coefs_sys.bb);
 }
 
 static ssize_t manager_cpr_coef_store(struct omap_overlay_manager *mgr,
@@ -371,6 +373,8 @@ static ssize_t manager_cpr_coef_store(struct omap_overlay_manager *mgr,
 
 	mgr->get_manager_info(mgr, &info);
 
+	info.cpr_coefs_sys = coefs;
+	// sysfs calls clobbers any dsscomp merged values
 	info.cpr_coefs = coefs;
 
 	r = mgr->set_manager_info(mgr, &info);
@@ -590,7 +594,6 @@ struct manager_cache_data {
 	bool cpr_enable;
 	struct omap_dss_cpr_coefs cpr_coefs;
 	bool skip_init;
-	bool m2m_only;
 };
 
 static struct {
@@ -1758,65 +1761,6 @@ end:
 	spin_unlock(&dss_cache.lock);
 }
 
-/* This function is needed for turning on/turning off DISPC clock for M2M mode
- * with blanked panel. Essentially, this function increments/decrements counter
- * of users of DISPC. */
-void dss_m2m_clock_handling(struct omap_overlay_manager *mgr)
-{
-	struct manager_cache_data *mc;
-	bool mc_m2m_only;
-
-	mc = &dss_cache.manager_cache[mgr->id];
-	mc_m2m_only = mc->m2m_only;
-
-	if (mgr->m2m_only && !mc_m2m_only)
-		dispc_runtime_get();
-	else if (!mgr->m2m_only && mc_m2m_only)
-		dispc_runtime_put();
-}
-
-static void dss_m2m_apply_handler(void)
-{
-	struct manager_cache_data *mc;
-	struct overlay_cache_data *oc;
-	const int num_ovls = dss_feat_get_num_ovls();
-	const int num_mgrs = dss_feat_get_num_mgrs();
-	int i;
-	bool mgr_busy[MAX_DSS_MANAGERS];
-
-	for (i = 0; i < MAX_DSS_MANAGERS; i++) {
-		if (i < num_mgrs) {
-			if (mgrs[i] && mgrs[i]->m2m_only)
-				mgr_busy[i] = false;
-			else
-				mgr_busy[i] = dispc_go_busy(i);
-		} else
-			mgr_busy[i] = false;
-	}
-
-	for (i = 0; i < num_ovls; ++i) {
-		oc = &dss_cache.overlay_cache[i];
-		if (!mgr_busy[oc->channel] && oc->shadow_dirty) {
-			dss_ovl_program_cb(&oc->cb, i);
-			oc->dispc_channel = oc->channel;
-			oc->shadow_dirty = false;
-		}
-	}
-
-	for (i = 0; i < num_mgrs; ++i) {
-		mc = &dss_cache.manager_cache[i];
-		if (!mgr_busy[i] && mc->shadow_dirty) {
-			if (mgrs[i] && mgrs[i]->device)
-				mgrs[i]->device->first_vsync = true;
-
-			dss_ovl_program_cb(&mc->cb, i);
-			mc->shadow_dirty = false;
-		}
-	}
-
-	configure_dispc();
-}
-
 static int omap_dss_mgr_blank(struct omap_overlay_manager *mgr,
 			bool wait_for_go)
 {
@@ -1876,29 +1820,21 @@ static int omap_dss_mgr_blank(struct omap_overlay_manager *mgr,
 	mgr->info.cb.fn = NULL;
 	mc->dirty = true;
 	mgr->info_dirty = false;
-	mc->m2m_only = mgr->m2m_only;
 
 	/*
 	 * TRICKY: Enable apply irq even if not waiting for vsync, so that
 	 * DISPC programming takes place in case GO bit was on.
 	 */
-	if (mgr->m2m_only) {
-		configure_dispc();
-		dss_m2m_apply_handler();
-	} else {
-		if (!dss_cache.irq_enabled) {
-			u32 mask;
+	if (!dss_cache.irq_enabled) {
+		u32 mask;
 
-			mask = DISPC_IRQ_VSYNC | DISPC_IRQ_EVSYNC_ODD |
-							DISPC_IRQ_EVSYNC_EVEN;
+		mask = DISPC_IRQ_VSYNC	| DISPC_IRQ_EVSYNC_ODD |
+			DISPC_IRQ_EVSYNC_EVEN;
+		if (dss_has_feature(FEAT_MGR_LCD2))
+			mask |= DISPC_IRQ_VSYNC2;
 
-			if (dss_has_feature(FEAT_MGR_LCD2))
-				mask |= DISPC_IRQ_VSYNC2;
-
-			r = omap_dispc_register_isr(dss_apply_irq_handler,
-								NULL, mask);
-			dss_cache.irq_enabled = true;
-		}
+		r = omap_dispc_register_isr(dss_apply_irq_handler, NULL, mask);
+		dss_cache.irq_enabled = true;
 	}
 
 	if (!r_get) {
@@ -1978,8 +1914,6 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 	r = dispc_runtime_get();
 	if (r)
 		return r;
-
-	omap_dss_overlay_ensure_bw();
 
 	spin_lock_irqsave(&dss_cache.lock, flags);
 
@@ -2143,12 +2077,6 @@ static int omap_dss_mgr_apply(struct omap_overlay_manager *mgr)
 
 	mc->skip_init = dssdev->skip_init;
 
-	/* WA: Do not set GO bit on manager */
-	if (mgr->m2m_only)
-		mc->skip_init = true;
-
-	mc->m2m_only = mgr->m2m_only;
-
 skip_mgr:
 
 	/* XXX TODO: Try to get fifomerge working. The problem is that it
@@ -2212,25 +2140,18 @@ skip_mgr:
 	}
 
 	r = 0;
-	if (mgr->m2m_only) {
-		configure_dispc();
-		dss_m2m_apply_handler();
-	} else {
-		if (!dss_cache.irq_enabled) {
-			u32 mask;
+	if (!dss_cache.irq_enabled) {
+		u32 mask;
 
-			mask = DISPC_IRQ_VSYNC | DISPC_IRQ_EVSYNC_ODD |
-							DISPC_IRQ_EVSYNC_EVEN;
+		mask = DISPC_IRQ_VSYNC	| DISPC_IRQ_EVSYNC_ODD |
+			DISPC_IRQ_EVSYNC_EVEN;
+		if (dss_has_feature(FEAT_MGR_LCD2))
+			mask |= DISPC_IRQ_VSYNC2;
 
-			if (dss_has_feature(FEAT_MGR_LCD2))
-				mask |= DISPC_IRQ_VSYNC2;
-
-			r = omap_dispc_register_isr(dss_apply_irq_handler,
-								NULL, mask);
-			dss_cache.irq_enabled = true;
-		}
-		configure_dispc();
+		r = omap_dispc_register_isr(dss_apply_irq_handler, NULL, mask);
+		dss_cache.irq_enabled = true;
 	}
+	configure_dispc();
 
 done:
 	spin_unlock_irqrestore(&dss_cache.lock, flags);

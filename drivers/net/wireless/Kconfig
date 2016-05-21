@@ -269,9 +269,16 @@ config MWL8K
 	  will be called mwl8k.  If unsure, say N.
 
 config WIFI_CONTROL_FUNC
-	bool "Enable WiFi control function abstraction"
-	help
-	  Enables Power/Reset/Carddetect function abstraction
+        bool "Enable WiFi control function abstraction"
+        depends on MACH_OMAP_BLAZE || MACH_OMAP_4430SDP || MACH_OMAP_ZOOM2 || MACH_OMAP_ZOOM3
+        select WIRELESS_EXT
+        select WEXT_CORE
+        select WEXT_PROC
+        select WEXT_PRIV
+        default Y
+        help
+           Enables Power/Reset/Carddetect function abstraction
+
 
 source "drivers/net/wireless/ath/Kconfig"
 source "drivers/net/wireless/b43/Kconfig"

@@ -67,7 +67,7 @@ GCDBG_FILTERDEF(queue, GCZONE_NONE,
 
 /* GPU timeout in milliseconds. The timeout value controls when the power
  * on the GPU is pulled if there is no activity in progress or scheduled. */
-#define GC_THREAD_TIMEOUT	20
+#define GC_THREAD_TIMEOUT	1000
 
 /* Time in milliseconds to wait for GPU to become idle. */
 #define GC_IDLE_TIMEOUT		100
@@ -567,8 +567,8 @@ static int gccmdthread(void *_gccorecontext)
 		/* Wait for ready signal. If 'ready' is signaled before the
 		 * call times out, signaled is set to a value greater then
 		 * zero. If the call times out, signaled is set to zero. */
-		signaled = wait_for_completion_interruptible_timeout(
-			&gcqueue->ready, timeout);
+		signaled = wait_for_completion_interruptible_timeout(&gcqueue->ready,
+						       timeout);
 		GCDBG(GCZONE_THREAD, "wait(ready) = %d.\n", signaled);
 
 		if (signaled < 0)
@@ -790,16 +790,7 @@ static int gccmdthread(void *_gccorecontext)
 				GCDBG(GCZONE_THREAD, "thread timedout.\n");
 
 			if (gcqueue->gcmoterminator == NULL) {
-				GCDBG(GCZONE_THREAD, "no work scheduled.\n");
-
-				if (!list_empty(&gcqueue->queue))
-					GCERR("queue is not empty.\n");
-
 				gcqueue->suspend = false;
-
-				/* Set timeout to infinity. */
-				timeout = MAX_SCHEDULE_TIMEOUT;
-
 				GCUNLOCK(&gcqueue->queuelock);
 				continue;
 			}
@@ -832,8 +823,8 @@ static int gccmdthread(void *_gccorecontext)
 							link);
 
 				if (!list_empty(&headcmdbuf->events)) {
-					/* Found events, there must be
-					 * pending interrupts. */
+					/* found events, there must be
+					 * pending interrupts */
 					break;
 				}
 
@@ -844,7 +835,7 @@ static int gccmdthread(void *_gccorecontext)
 
 			if (!list_empty(&gcqueue->queue)) {
 				GCDBG(GCZONE_THREAD,
-				      "aborting shutdown to process events\n");
+					"aborting shutdown to process events\n");
 				GCUNLOCK(&gcqueue->queuelock);
 				continue;
 			}

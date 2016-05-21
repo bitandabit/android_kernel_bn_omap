@@ -88,7 +88,7 @@ struct mmc_blk_data {
 
 	unsigned int	flags;
 #define MMC_BLK_CMD23	(1 << 0)	/* Can do SET_BLOCK_COUNT for multiblock */
-#define MMC_BLK_REL_WR	(1 << 1)	/* MMC Reliable write support */
+#define MMC_BLK_REL_WR	(0 << 1)	/* MMC Reliable write support */
 
 	unsigned int	usage;
 	unsigned int	read_only;

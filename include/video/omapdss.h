@@ -268,23 +268,29 @@ int dsi_vc_gen_write_nosync(struct omap_dss_device *dssdev, int channel,
 		u8 *data, int len);
 int dsi_vc_gen_write(struct omap_dss_device *dssdev, int channel,
 		u8 *data, int len);
+int dsi_vc_gen_short_write_nosync(struct omap_dss_device *dssdev, int channel, 
+		u8 *data, int len);
 int dsi_vc_set_max_rx_packet_size(struct omap_dss_device *dssdev, int channel,
 		u16 len);
 int dsi_vc_send_null(struct omap_dss_device *dssdev, int channel);
 int dsi_vc_send_bta_sync(struct omap_dss_device *dssdev, int channel);
 
 int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type);
-void dsi_video_mode_disable(struct omap_dss_device *dssdev);
+void dsi_video_mode_disable(struct omap_dss_device *dssdev, bool cmd_mode);
 
 int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
 		u8 *buf, int buflen);
+int dsi_vc_gen_read_1(struct omap_dss_device *dssdev, int channel, u16 cmd,
+		u8 *buf, int buflen);
 void dsi_videomode_panel_preinit(struct omap_dss_device *dssdev);
-
+int dsi_vc_turn_on_peripheral(struct omap_dss_device *dssdev, int channel);
+int dsi_interleave_vc_gen_short_write_nosync(struct omap_dss_device *dssdev, int channel, u8 *data, size_t len);
 
 /* Board specific data */
 struct omap_dss_board_info {
 	int (*get_context_loss_count)(struct device *dev);
 	int num_devices;
+	bool move_wb_buffers;
 	struct omap_dss_device **devices;
 	struct omap_dss_device *default_device;
 	void (*dsi_mux_pads)(bool enable);
@@ -303,8 +309,6 @@ static inline int omap_display_init(struct omap_dss_board_info *board_data)
 struct omap_display_platform_data {
 	struct omap_dss_board_info *board_data;
 	/* TODO: Additional members to be added when PM is considered */
-	int (*device_scale) (struct device *req_dev, struct device *target_dev,
-			unsigned long rate);
 };
 
 struct omap_video_timings {
@@ -482,8 +486,15 @@ struct omap_overlay_manager_info {
 
 	struct omapdss_ovl_cb cb;
 
+	/* merged cpr settings, this is the union of
+	   cpr settings provided by dsscomp and sysfs entry
+	 */
 	bool cpr_enable;
 	struct omap_dss_cpr_coefs cpr_coefs;
+
+	/* cpr settings provided via the sysfs entry */
+	bool cpr_enable_sys;
+	struct omap_dss_cpr_coefs cpr_coefs_sys;
 };
 
 struct omap_overlay_manager {
@@ -505,8 +516,6 @@ struct omap_overlay_manager {
 	bool device_changed;
 	/* if true, info has been changed but not applied() yet */
 	bool info_dirty;
-
-	bool m2m_only;
 
 	int (*set_device)(struct omap_overlay_manager *mgr,
 		struct omap_dss_device *dssdev);
@@ -703,6 +712,7 @@ struct omap_dss_device {
 	struct {
 		u8 pixel_size;
 		struct rfbi_timings rfbi_timings;
+		u8 dither;
 	} ctrl;
 
 	int reset_gpio;
@@ -806,6 +816,10 @@ struct omap_dss_driver {
 	void (*disable_orig)(struct omap_dss_device *display);
 	int (*enable_orig)(struct omap_dss_device *display);
 	int (*suspend_orig)(struct omap_dss_device *display);
+
+	int (*set_current_fps)(struct omap_dss_device *dssdev, const char *fps);
+	ssize_t (*get_current_fps)(struct omap_dss_device *dssdev, char *buf, size_t len);
+	ssize_t (*get_fps)(struct omap_dss_device *dssdev, char *buf, size_t len);
 };
 
 int omap_dss_register_driver(struct omap_dss_driver *);
@@ -820,8 +834,6 @@ struct omap_dss_device *omap_dss_find_device(void *data,
 
 int omap_dss_start_device(struct omap_dss_device *dssdev);
 void omap_dss_stop_device(struct omap_dss_device *dssdev);
-
-void dss_m2m_clock_handling(struct omap_overlay_manager *mgr);
 
 int omap_dss_get_num_overlay_managers(void);
 struct omap_overlay_manager *omap_dss_get_overlay_manager(int num);
@@ -868,6 +880,7 @@ void omap_dsi_release_vc(struct omap_dss_device *dssdev, int channel);
 int omapdss_dsi_display_enable(struct omap_dss_device *dssdev);
 void omapdss_dsi_display_disable(struct omap_dss_device *dssdev,
 		bool disconnect_lanes, bool enter_ulps);
+int omap_dsi_reconfigure_dsi_clocks(struct omap_dss_device *dssdev);
 
 int omapdss_dpi_display_enable(struct omap_dss_device *dssdev);
 void omapdss_dpi_display_disable(struct omap_dss_device *dssdev);

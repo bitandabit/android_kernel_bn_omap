@@ -18,18 +18,12 @@
 #include "sched.h"
 #include "gcioctl.h"
 
-/* Capability query. */
-void gc_caps(struct gcicaps *gcicaps);
-
 /* Command buffer submission. */
-void gc_commit(struct gcicommit *gcicommit, bool fromuser);
+void gc_commit(struct gccommit *gccommit, bool fromuser);
 
-/* Client memory mapping. */
-void gc_map(struct gcimap *gcimap, bool fromuser);
-void gc_unmap(struct gcimap *gcimap, bool fromuser);
-
-/* Arm a callback. */
-void gc_callback(struct gcicallbackarm *gcicallbackarm, bool fromuser);
+/* Surface management. */
+void gc_map(struct gcmap *gcmap, bool fromuser);
+void gc_unmap(struct gcmap *gcmap, bool fromuser);
 
 /* Process cleanup. */
 void gc_release(void);

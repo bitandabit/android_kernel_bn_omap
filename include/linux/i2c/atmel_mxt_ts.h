@@ -25,6 +25,14 @@
 #define MXT_ROTATED_180		0x6
 #define MXT_DIAGONAL_COUNTER	0x7
 
+#define MXT1188_I2C_SLAVEADDRESS  (0x4a)
+#define MXT768_I2C_SLAVEADDRESS  (0x4c)
+
+#define MXT_DRIVER_NAME "atmel_mxt_ts"
+#define MXT_DEVICE_224_NAME "atmel_mxt_224"
+#define MXT_DEVICE_768_NAME "atmel_mxt_768"
+#define MXT_DEVICE_1188_NAME "atmel_mxt_1188"
+
 /* The platform data for the Atmel maXTouch touchscreen driver */
 struct mxt_platform_data {
 	const u8 *config;
@@ -36,9 +44,17 @@ struct mxt_platform_data {
 	unsigned int y_size;
 	unsigned int blen;
 	unsigned int threshold;
-	unsigned int voltage;
 	unsigned char orient;
 	unsigned long irqflags;
+	unsigned long config_crc;
+	unsigned int reset_gpio;
+	u8(*read_chg) (void);
+	int (*request_resources)(struct device *dev);
+	int (*release_resources)(struct device *dev);
+	int (*power_on)(struct device *dev);
+	int (*power_off)(struct device *dev);
+        unsigned int reset_on_resume;
+        unsigned int use_fw_gestures;
 };
 
 #endif /* __LINUX_ATMEL_MXT_TS_H */

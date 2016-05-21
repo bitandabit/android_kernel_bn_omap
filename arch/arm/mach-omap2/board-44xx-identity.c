@@ -65,7 +65,6 @@ static const char *app_board_rev_types[] = {
 	[OMAP4_TABLET_2_0_ID]		= "Tablet 2.0",
 	[OMAP4_TABLET_2_1_ID]		= "Tablet 2.1",
 	[OMAP4_TABLET_2_1_1_ID]		= "Tablet 2.1.1",
-	[OMAP4_TABLET_2_1_2_ID]		= "Tablet 2.1.2",
 	[OMAP4_BLAZE_ID]		= "Blaze/SDP",
 	[OMAP4_PANDA_ID]		= "Panda",
 	[OMAP4_MAX_ID]			= "Unknown",
@@ -93,15 +92,20 @@ static ssize_t omap4_board_rev_show(struct kobject *kobj,
 {
 	int apps_brd_rev = 0;
 
-	apps_brd_rev = omap_get_board_id();
-
-	if (apps_brd_rev < 0)
+	if(machine_is_omap_ovation()){
+		return sprintf(buf, "%s\n", "Ovation");
+	} else if (machine_is_omap_hummingbird() ) {
+		return sprintf(buf, "%s\n", "Hummingbird");
+	} else {
 		return -EINVAL;
+	}
 
-	if (apps_brd_rev > OMAP4_MAX_ID)
-		apps_brd_rev = OMAP4_MAX_ID;
+}
 
-	return sprintf(buf, "%s\n", app_board_rev_types[apps_brd_rev]);
+static ssize_t omap4_system_rev_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%i\n", system_rev);
 }
 
 static ssize_t omap4_soc_type_max_freq(struct kobject *kobj,
@@ -175,6 +179,7 @@ static OMAP4_SOC_ATTR_RO(production_id, omap4_prod_id_show);
 static OMAP4_SOC_ATTR_RO(die_id, omap4_die_id_show);
 
 static OMAP4_BOARD_ATTR_RO(board_rev, omap4_board_rev_show);
+static OMAP4_BOARD_ATTR_RO(system_rev, omap4_system_rev_show);
 
 static struct attribute *omap4_soc_prop_attrs[] = {
 	&omap4_soc_prop_attr_family.attr,
@@ -190,6 +195,7 @@ static struct attribute *omap4_soc_prop_attrs[] = {
 
 static struct attribute *omap4_board_prop_attrs[] = {
 	&omap4_board_prop_attr_board_rev.attr,
+	&omap4_board_prop_attr_system_rev.attr,
 	NULL,
 };
 

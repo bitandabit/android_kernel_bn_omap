@@ -374,8 +374,12 @@ static void enable_be_port(struct snd_soc_pcm_runtime *be,
 
 			/* BT_DL connection to McBSP 1 ports */
 			format.f = 8000;
-			format.samp_format = STEREO_RSHIFTED_16;
+			format.samp_format = MONO_RSHIFTED_16;
+#if (defined(CONFIG_MACH_OMAP_OVATION)||defined(CONFIG_MACH_OMAP_HUMMINGBIRD))
+			abe_connect_serial_port(BT_VX_DL_PORT, &format, MCBSP3_TX);
+#else
 			abe_connect_serial_port(BT_VX_DL_PORT, &format, MCBSP1_TX);
+#endif
 			omap_abe_port_enable(abe_priv->abe,
 				abe_priv->port[OMAP_ABE_BE_PORT_BT_VX_DL]);
 		} else {
@@ -387,8 +391,12 @@ static void enable_be_port(struct snd_soc_pcm_runtime *be,
 
 			/* BT_UL connection to McBSP 1 ports */
 			format.f = 8000;
-			format.samp_format = STEREO_RSHIFTED_16;
+			format.samp_format = MONO_RSHIFTED_16;
+#if (defined(CONFIG_MACH_OMAP_OVATION)||defined(CONFIG_MACH_OMAP_HUMMINGBIRD))
+			abe_connect_serial_port(BT_VX_UL_PORT, &format, MCBSP3_RX);
+#else
 			abe_connect_serial_port(BT_VX_UL_PORT, &format, MCBSP1_RX);
+#endif
 			omap_abe_port_enable(abe_priv->abe,
 				abe_priv->port[OMAP_ABE_BE_PORT_BT_VX_UL]);
 		}

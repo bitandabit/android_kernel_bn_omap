@@ -11,9 +11,42 @@
 #include <linux/buffer_head.h>
 #include "fat.h"
 
+static long fatsdcard_id = -1;
+
+ssize_t show_sdcard_id(struct kobject * kobj, struct kobj_attribute * attr, char * buf);
+
+static struct kset *fat_kset;
+static struct kobj_attribute fatsdcard_show_id_attribute = __ATTR(id, 0666, show_sdcard_id, NULL);
+
+static struct attribute * fatsdcard_attributes[] = {
+	&fatsdcard_show_id_attribute.attr,
+	NULL,
+};
+
+static struct attribute_group fatsd_attr_group = {
+	.attrs = fatsdcard_attributes,
+};
+
 /* Characters that are undesirable in an MS-DOS file name */
 static unsigned char bad_chars[] = "*?<>|\"";
 static unsigned char bad_if_strict[] = "+=,; ";
+
+void set_fatsdcard_id( long id )
+{
+	fatsdcard_id = id;
+}
+
+void clear_fatsdcard_id(void)
+{
+	fatsdcard_id = -1;
+}
+
+ssize_t show_sdcard_id(struct kobject * kobj, struct kobj_attribute * attr, char * buf)
+{
+	return sprintf(buf, "%d\n",fatsdcard_id );
+}
+
+
 
 /***** Formats an MS-DOS file name. Rejects invalid names. */
 static int msdos_format_name(const unsigned char *name, int len,
@@ -156,6 +189,7 @@ static int msdos_hash(const struct dentry *dentry, const struct inode *inode,
 	int error;
 
 	error = msdos_format_name(qstr->name, qstr->len, msdos_name, options);
+
 	if (!error)
 		qstr->hash = full_name_hash(msdos_name, MSDOS_NAME);
 	return 0;
@@ -686,11 +720,16 @@ static struct file_system_type msdos_fs_type = {
 
 static int __init init_msdos_fs(void)
 {
+	fat_kset = kset_create_and_add("fatsdcard", NULL, fs_kobj);
+	if ( fat_kset != NULL ) {
+		sysfs_create_group(&fat_kset->kobj, &fatsd_attr_group);
+	}
 	return register_filesystem(&msdos_fs_type);
 }
 
 static void __exit exit_msdos_fs(void)
 {
+	kset_unregister(fat_kset);
 	unregister_filesystem(&msdos_fs_type);
 }
 

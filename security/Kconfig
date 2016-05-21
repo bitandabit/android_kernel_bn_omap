@@ -188,6 +188,7 @@ source security/apparmor/Kconfig
 
 source security/integrity/ima/Kconfig
 source security/smc/Kconfig
+source security/bnprov/Kconfig
 
 choice
 	prompt "Default security module"

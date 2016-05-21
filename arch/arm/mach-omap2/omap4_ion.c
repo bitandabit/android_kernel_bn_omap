@@ -118,18 +118,18 @@ void __init omap_ion_init(void)
 		omap4_ion_heap_nonsec_tiler_mem_size = 0;
 		omap4_ion_heap_tiler_mem_size = 0;
 	} else {
-		omap4_ion_heap_secure_input_size = (SZ_1M * 90);
+		omap4_ion_heap_secure_input_size = (SZ_1M * 48);
 		omap4_ion_heap_secure_output_wfdhdcp_size = (SZ_1M * 16);
-		omap4_ducati_heap_size = (SZ_1M * 109);
+		omap4_ducati_heap_size = (SZ_1M * 48);
 		omap4_ion_heap_nonsec_tiler_mem_size = nonsecure;
 		omap4_ion_heap_tiler_mem_size =
 					 (ALIGN(omap4_ion_pdata.tiler2d_size +
 					 nonsecure, SZ_2M) - nonsecure);
 	}
 
+
 	/* carveout addresses */
-	omap4_smc_addr = PLAT_PHYS_OFFSET + omap_total_ram_size() -
-				omap4_smc_size;
+	omap4_smc_addr = PLAT_PHYS_OFFSET + SZ_1G - omap4_smc_size;
 	omap4_ion_heap_secure_input_addr = omap4_smc_addr -
 				omap4_ion_heap_secure_input_size;
 	omap4_ion_heap_secure_output_wfdhdcp_addr =

@@ -1460,14 +1460,16 @@ static int twl6030battery_current_setup(bool enable)
 }
 
 static enum power_supply_property twl6030_bci_battery_props[] = {
-	POWER_SUPPLY_PROP_STATUS,
-	POWER_SUPPLY_PROP_HEALTH,
-	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CURRENT_AVG,
+#if 0
+	POWER_SUPPLY_PROP_STATUS,
+	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_TEMP,
+#endif
 };
 
 static enum power_supply_property twl6030_usb_props[] = {
@@ -1622,9 +1624,7 @@ static int capacity_changed(struct twl6030_bci_device_info *di)
 	/* Setting the capacity level only makes sense when on
 	 * the battery is powering the board.
 	 */
-	if ((di->charge_status == POWER_SUPPLY_STATUS_DISCHARGING) ||
-		(di->charge_status == POWER_SUPPLY_STATUS_NOT_CHARGING)) {
-
+	if (di->charge_status == POWER_SUPPLY_STATUS_DISCHARGING) {
 		if (di->voltage_mV < 3500)
 			curr_capacity = 5;
 		else if (di->voltage_mV < 3600 && di->voltage_mV >= 3500)
@@ -1636,7 +1636,7 @@ static int capacity_changed(struct twl6030_bci_device_info *di)
 		else if (di->voltage_mV < 3900 && di->voltage_mV >= 3800)
 			curr_capacity = 90;
 		else if (di->voltage_mV >= 3900)
-			curr_capacity = 100;
+				curr_capacity = 100;
 	}
 
 	/* if we disabled charging to check capacity,
@@ -2860,10 +2860,6 @@ static int __devinit twl6030_bci_battery_probe(struct platform_device *pdev)
 					POWER_SUPPLY_STATUS_DISCHARGING;
 		}
 	}
-
-	ret = twl6030backupbatt_setup();
-	if (ret)
-		dev_dbg(&pdev->dev, "Backup Bat charging setup failed\n");
 
 	twl6030_interrupt_unmask(TWL6030_CHARGER_CTRL_INT_MASK,
 						REG_INT_MSK_LINE_C);

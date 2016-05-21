@@ -76,7 +76,7 @@ static struct omap4430_sdp_disp_led_platform_data blaze_disp_led_data = {
 	.secondary_display_set = blaze_set_secondary_brightness,
 };
 
-static void __init omap_disp_led_init(void)
+static void omap_disp_led_init(void)
 {
 	/* Seconday backlight control */
 	gpio_request(DSI2_GPIO_59, "dsi2_bl_gpio");

@@ -23,6 +23,8 @@
 #include <linux/init.h>
 #include <linux/nmi.h>
 #include <linux/dmi.h>
+#include <linux/syscalls.h>
+
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -115,6 +117,8 @@ NORET_TYPE void panic(const char * fmt, ...)
 		 * Delay timeout seconds before rebooting the machine.
 		 * We can't use the "normal" timers since we just panicked.
 		 */
+		printk(KERN_EMERG "Syncing filesystem ");
+		sys_sync();
 		printk(KERN_EMERG "Rebooting in %d seconds..", panic_timeout);
 
 		for (i = 0; i < panic_timeout * 1000; i += PANIC_TIMER_STEP) {
@@ -132,6 +136,12 @@ NORET_TYPE void panic(const char * fmt, ...)
 		 */
 		emergency_restart();
 	}
+#if (defined(CONFIG_MACH_OMAP_HUMMINGBIRD) || defined(CONFIG_MACH_OMAP_OVATION))
+	else {
+		emergency_restart();
+	}
+#endif
+
 #ifdef __sparc__
 	{
 		extern int stop_a_enabled;

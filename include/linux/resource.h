@@ -68,8 +68,13 @@ struct rlimit64 {
  * GPG2 wants 64kB of mlocked memory, to make sure pass phrases
  * and other sensitive information are never written to disk.
  */
-#define MLOCK_LIMIT	((PAGE_SIZE > 64*1024) ? PAGE_SIZE : 64*1024)
+#define ENABLE_SKIA_NOOK
 
+#ifndef ENABLE_SKIA_NOOK
+#define MLOCK_LIMIT	((PAGE_SIZE > 64*1024) ? PAGE_SIZE : 64*1024)
+#else
+#define MLOCK_LIMIT (8 * 1024 * PAGE_SIZE)
+#endif
 /*
  * Due to binary compatibility, the actual resource numbers
  * may be different for different linux versions..
