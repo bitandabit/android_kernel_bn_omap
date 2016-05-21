@@ -413,10 +413,10 @@ static MANAGER_ATTR(trans_key_enabled, S_IRUGO|S_IWUSR,
 static MANAGER_ATTR(alpha_blending_enabled, S_IRUGO|S_IWUSR,
 		manager_alpha_blending_enabled_show,
 		manager_alpha_blending_enabled_store);
-static MANAGER_ATTR(cpr_enable, S_IRUGO|S_IWUSR,
+static MANAGER_ATTR(cpr_enable, S_IRUGO|S_IWUSR|S_IWGRP,
 		manager_cpr_enable_show,
 		manager_cpr_enable_store);
-static MANAGER_ATTR(cpr_coef, S_IRUGO|S_IWUSR,
+static MANAGER_ATTR(cpr_coef, S_IRUGO|S_IWUSR|S_IWGRP,
 		manager_cpr_coef_show,
 		manager_cpr_coef_store);
 
@@ -661,6 +661,12 @@ static int omap_dss_set_device(struct omap_overlay_manager *mgr,
 
 	for (i = 0; i < mgr->num_overlays; i++) {
 		struct omap_overlay *ovl = mgr->overlays[i];
+
+		if (dispc_init_cpr_coef( mgr->id, &(mgr->info.cpr_coefs)))
+			mgr->info.cpr_enable = true;
+
+		if (dispc_init_cpr_coef(mgr->id, &(mgr->info.cpr_coefs_sys)))
+			mgr->info.cpr_enable_sys = true;
 
 		if (ovl->manager != mgr || !ovl->info.enabled)
 			continue;
@@ -2411,6 +2417,7 @@ int dss_init_overlay_managers(struct platform_device *pdev)
 		mgr = kzalloc(sizeof(*mgr), GFP_KERNEL);
 
 		BUG_ON(mgr == NULL);
+
 
 		/* alpha blending always on with OMAP3 alpha compatibility */
 		if (dss_has_feature(FEAT_ALPHA_OMAP3_COMPAT))

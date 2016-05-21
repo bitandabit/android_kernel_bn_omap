@@ -259,7 +259,7 @@ static int lg_maxim9606_power_off(struct device *dev)
 static struct lp855x_platform_data lp8556_pdata = {
 	.name = "lcd-backlight",
 	.mode = REGISTER_BASED,
-	.device_control = LP8556_COMB1_CONFIG,
+	.device_control = LP8556_COMB1_CONFIG | LP8556_FAST,
 	.initial_brightness = INITIAL_BRT,
 	.max_brightness = MAX_BRT,
 	.led_setting = PS_MODE_4P4D | PWM_FREQ6916HZ,
@@ -392,6 +392,7 @@ static int auo_enable_dsi(struct omap_dss_device *dssdev)
 	}
 
 	gpio_direction_output(LCD_DCR_1V8_GPIO_EVT1B, 0);
+
 	return 0;
 }
 
@@ -399,13 +400,13 @@ static void auo_disable_dsi(struct omap_dss_device *dssdev)
 {
 	gpio_direction_output(LCD_DCR_1V8_GPIO_EVT1B, 0);	
 	msleep(100);
-	_disable_supplies();
 
-	if (regulator_is_enabled(hummingbird_bl_i2c_pullup_power))
-		regulator_disable(hummingbird_bl_i2c_pullup_power);
-
-	if (regulator_is_enabled(hummingbird_lcd_power))
+	if (first_boot) {
 		regulator_disable(hummingbird_lcd_power);
+		first_boot = false;
+	}
+
+	_disable_supplies();
 }
 
 static int hummingbird_enable_hdmi(struct omap_dss_device *dssdev)
