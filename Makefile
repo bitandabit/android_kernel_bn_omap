@@ -356,6 +356,7 @@ KERNELFLAGS	= $(COMMONFLAGS) -mtune=cortex-a9 -mcpu=cortex-a9 -marm -mfpu=neon \
 				-mvectorize-with-neon-quad -munaligned-access
 # Bad options: -floop-parallelize-all -ftree-parallelize-loops=4
 MODFLAGS	= -DMODULE $(KERNELFLAGS)
+LDFLAGS         = -O3 --as-needed --sort-common
 CFLAGS_MODULE   =
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
