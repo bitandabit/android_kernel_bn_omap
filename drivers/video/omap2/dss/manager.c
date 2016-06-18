@@ -691,12 +691,6 @@ static int omap_dss_set_device(struct omap_overlay_manager *mgr,
 	for (i = 0; i < mgr->num_overlays; i++) {
 		struct omap_overlay *ovl = mgr->overlays[i];
 
-		if (dispc_init_cpr_coef( mgr->id, &(mgr->info.cpr_coefs)))
-			mgr->info.cpr_enable = true;
-
-		if (dispc_init_cpr_coef(mgr->id, &(mgr->info.cpr_coefs_sys)))
-			mgr->info.cpr_enable_sys = true;
-
 		if (ovl->manager != mgr || !ovl->info.enabled)
 			continue;
 
@@ -2554,7 +2548,6 @@ int dss_init_overlay_managers(struct platform_device *pdev)
 		mgr = kzalloc(sizeof(*mgr), GFP_KERNEL);
 
 		BUG_ON(mgr == NULL);
-
 
 		/* alpha blending always on with OMAP3 alpha compatibility */
 		if (dss_has_feature(FEAT_ALPHA_OMAP3_COMPAT))
