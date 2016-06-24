@@ -3436,8 +3436,8 @@ err:
 }
 EXPORT_SYMBOL(dsi_vc_gen_write);
 
-int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
-		u8 *buf, int buflen)
+static int dsi_vc_gen_read(struct omap_dss_device *dssdev, int channel,
+		u16 read_cmd, u16 cmd, u8 *buf, int buflen)
 {
 	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
 	struct dsi_data *dsi = dsi_get_dsidrv_data(dsidev);
@@ -3448,8 +3448,7 @@ int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
 	if (dsi->debug_read)
 		DSSDBG("%s(ch%d, cmd %x)\n", __func__, channel, cmd);
 
-	r = dsi_vc_send_short(dsidev, channel,
-			MIPI_DSI_GENERIC_READ_REQUEST_2_PARAM, cmd, 0);
+	r = dsi_vc_send_short(dsidev, channel, read_cmd, cmd, 0);
 	if (r)
 		goto err;
 
@@ -3474,7 +3473,7 @@ int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
 		r = -EIO;
 		goto err;
 
-	} else if (dt == MIPI_DSI_RX_DCS_SHORT_READ_RESPONSE_1BYTE) {
+	} else if (dt == MIPI_DSI_RX_GENERIC_SHORT_READ_RESPONSE_1BYTE) {
 		u8 data = FLD_GET(val, 15, 8);
 		if (dsi->debug_read)
 			DSSDBG("\tDCS short response, 1 byte: %02x\n", data);
@@ -3487,7 +3486,7 @@ int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
 		buf[0] = data;
 
 		return 1;
-	} else if (dt == MIPI_DSI_RX_DCS_SHORT_READ_RESPONSE_2BYTE) {
+	} else if (dt == MIPI_DSI_RX_GENERIC_SHORT_READ_RESPONSE_2BYTE) {
 		u16 data = FLD_GET(val, 23, 8);
 		if (dsi->debug_read)
 			DSSDBG("\tDCS short response, 2 byte: %04x\n", data);
@@ -3546,8 +3545,22 @@ err:
 	return r;
 
 }
-EXPORT_SYMBOL(dsi_vc_gen_read_2);
 
+int dsi_vc_gen_read_1(struct omap_dss_device *dssdev, int channel, u16 cmd,
+		u8 *buf, int buflen)
+{
+	return dsi_vc_gen_read(dssdev, channel,
+			MIPI_DSI_GENERIC_READ_REQUEST_1_PARAM, cmd, buf, buflen);
+}
+EXPORT_SYMBOL(dsi_vc_gen_read_1);
+
+int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
+		u8 *buf, int buflen)
+{
+	return dsi_vc_gen_read(dssdev, channel,
+			MIPI_DSI_GENERIC_READ_REQUEST_2_PARAM, cmd, buf, buflen);
+}
+EXPORT_SYMBOL(dsi_vc_gen_read_2);
 
 int dsi_vc_set_max_rx_packet_size(struct omap_dss_device *dssdev, int channel,
 		u16 len)
