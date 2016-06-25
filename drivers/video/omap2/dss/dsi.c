@@ -4018,9 +4018,12 @@ int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type)
 }
 EXPORT_SYMBOL(dsi_video_mode_enable);
 
-void dsi_video_mode_disable(struct omap_dss_device *dssdev)
+void dsi_video_mode_disable(struct omap_dss_device *dssdev, bool cmd_mode)
 {
+	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
+
 	dssdev->manager->disable(dssdev->manager);
+	REG_FLD_MOD(dsidev, DSI_VC_CTRL(0), ~cmd_mode, 4, 4);
 }
 EXPORT_SYMBOL(dsi_video_mode_disable);
 
