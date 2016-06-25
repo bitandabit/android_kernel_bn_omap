@@ -4429,6 +4429,11 @@ void dispc_disable_sidle(void)
 	REG_FLD_MOD(DISPC_SYSCONFIG, 1, 4, 3);	/* SIDLEMODE: no idle */
 }
 
+void dispc_disable_clk(void)
+{
+	clk_disable(dispc.dss_clk);
+}
+
 static void _omap_dispc_initial_config(void)
 {
 	u32 l;
