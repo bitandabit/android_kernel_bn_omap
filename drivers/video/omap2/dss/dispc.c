@@ -2846,6 +2846,11 @@ void dispc_go_wb()
 	DSSDBG("dispc_go_wb\n");
 }
 
+u16 dispc_line_status(void)
+{
+	return dispc_read_reg(DISPC_LINE_STATUS);
+}
+
 static void dispc_disable_isr(void *data, u32 mask)
 {
 	struct completion *compl = data;

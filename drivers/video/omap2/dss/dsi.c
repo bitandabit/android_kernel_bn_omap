@@ -3380,6 +3380,28 @@ int dsi_vc_dcs_read_2(struct omap_dss_device *dssdev, int channel, u8 dcs_cmd,
 }
 EXPORT_SYMBOL(dsi_vc_dcs_read_2);
 
+int dsi_vc_gen_short_write_nosync(struct omap_dss_device *dssdev, int channel,
+		u8 *data, int len)
+{
+	u16 buf = 0;
+	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
+
+	BUG_ON(len < 0);
+	BUG_ON(len > 2);
+
+	if (len > 0) {
+		buf = data[0];
+	}
+
+	if (len > 1) {
+		buf |= (data[1] << 8);
+	}
+
+	return dsi_vc_send_short(dsidev, channel,
+			MIPI_DSI_GENERIC_SHORT_WRITE_0_PARAM | (len << 4),
+				 buf, 0);
+}
+EXPORT_SYMBOL(dsi_vc_gen_short_write_nosync);
 
 int dsi_vc_gen_write_nosync(struct omap_dss_device *dssdev, int channel,
 		u8 *data, int len)
@@ -3571,6 +3593,15 @@ int dsi_vc_set_max_rx_packet_size(struct omap_dss_device *dssdev, int channel,
 			MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE, len, 0);
 }
 EXPORT_SYMBOL(dsi_vc_set_max_rx_packet_size);
+
+int dsi_vc_turn_on_peripheral(struct omap_dss_device *dssdev, int channel)
+{
+	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
+
+	return dsi_vc_send_short(dsidev, channel, MIPI_DSI_TURN_ON_PERIPHERAL,
+			(MIPI_DSI_TURN_ON_PERIPHERAL << 8) | MIPI_DSI_TURN_ON_PERIPHERAL, 0);
+}
+EXPORT_SYMBOL(dsi_vc_turn_on_peripheral);
 
 static int dsi_enter_ulps(struct platform_device *dsidev)
 {
@@ -4876,6 +4907,119 @@ int dsi_init_display(struct omap_dss_device *dssdev)
 	}
 
 	return 0;
+}
+
+int omap_dsi_reconfigure_dsi_clocks(struct omap_dss_device *dssdev)
+{
+	struct platform_device *dsidev = dsi_get_dsidev_from_dssdev(dssdev);
+	struct dsi_data *dsi = dsi_get_dsidrv_data(dsidev);
+	struct dsi_clock_info cinfo;
+	unsigned tclk_post, ths_eot, ddr_clk_pre, ddr_clk_post;
+	unsigned enter_hs_mode_lat, exit_hs_mode_lat;
+	u32 reconfig_phy_cfg0, reconfig_phy_cfg1, reconfig_phy_cfg2;
+	u32 reconfig_clk_timing, reconfig_vm_timing7;
+	int r;
+
+	WARN_ON(!dsi_bus_is_locked(dsidev));
+
+	mutex_lock(&dsi->lock);
+
+	/* we always use DSS_CLK_SYSCK as input clock */
+	cinfo.use_sys_clk = true;
+	cinfo.regn  = dssdev->clocks.dsi.regn;
+	cinfo.regm  = dssdev->clocks.dsi.regm;
+	cinfo.regm_dispc = dssdev->clocks.dsi.regm_dispc;
+	cinfo.regm_dsi = dssdev->clocks.dsi.regm_dsi;
+
+	r = dsi_calc_clock_rates(dssdev, &cinfo);
+
+	if (r) {
+		DSSERR("Failed to calc dsi clocks\n");
+		goto err_rate;
+	}
+
+	dsi->current_cinfo.use_sys_clk = cinfo.use_sys_clk;
+	dsi->current_cinfo.highfreq = cinfo.highfreq;
+
+	dsi->current_cinfo.fint = cinfo.fint;
+	dsi->current_cinfo.clkin4ddr = cinfo.clkin4ddr;
+	dsi->current_cinfo.dsi_pll_hsdiv_dispc_clk =
+			cinfo.dsi_pll_hsdiv_dispc_clk;
+	dsi->current_cinfo.dsi_pll_hsdiv_dsi_clk =
+			cinfo.dsi_pll_hsdiv_dsi_clk;
+
+	dsi->current_cinfo.regn = cinfo.regn;
+	dsi->current_cinfo.regm = cinfo.regm;
+	dsi->current_cinfo.regm_dispc = cinfo.regm_dispc;
+	dsi->current_cinfo.regm_dsi = cinfo.regm_dsi;
+
+	/* recompute CIO settings for the new data rate */
+
+	reconfig_phy_cfg0 = dsi_read_reg(dsidev, DSI_DSIPHY_CFG0);
+	reconfig_phy_cfg0 = FLD_MOD(reconfig_phy_cfg0, dssdev->clocks.dsi.ths.prepare, 31, 24);
+	reconfig_phy_cfg0 = FLD_MOD(reconfig_phy_cfg0, dssdev->clocks.dsi.ths.prepare + dssdev->clocks.dsi.ths.zero, 23, 16);
+	reconfig_phy_cfg0 = FLD_MOD(reconfig_phy_cfg0, dssdev->clocks.dsi.ths.trail, 15, 8);
+	reconfig_phy_cfg0 = FLD_MOD(reconfig_phy_cfg0, dssdev->clocks.dsi.ths.exit, 7, 0);
+
+	reconfig_phy_cfg1 = dsi_read_reg(dsidev, DSI_DSIPHY_CFG1);
+	reconfig_phy_cfg1 = FLD_MOD(reconfig_phy_cfg1, dssdev->clocks.dsi.tlpx / 2, 22, 16);
+	reconfig_phy_cfg1 = FLD_MOD(reconfig_phy_cfg1, dssdev->clocks.dsi.tclk.trail, 15, 8);
+	reconfig_phy_cfg1 = FLD_MOD(reconfig_phy_cfg1, dssdev->clocks.dsi.tclk.zero, 7, 0);
+
+	reconfig_phy_cfg2 = dsi_read_reg(dsidev, DSI_DSIPHY_CFG2);
+	reconfig_phy_cfg2 = FLD_MOD(reconfig_phy_cfg2, dssdev->clocks.dsi.tclk.prepare, 7, 0);
+
+	tclk_post = ns2ddr(dsidev, 60) + 26;
+	ths_eot = DIV_ROUND_UP(4, dsi_get_num_data_lanes_dssdev(dssdev));
+
+	/* recompute timing parameters for new data rate */
+
+	ddr_clk_pre = DIV_ROUND_UP(20 + dssdev->clocks.dsi.tlpx + dssdev->clocks.dsi.tclk.zero + dssdev->clocks.dsi.tclk.prepare, 4) + dssdev->clocks.dsi.offset_ddr_clk;
+
+	tclk_post = ns2ddr(dsidev, 60) + 26;
+	ths_eot = DIV_ROUND_UP(4, dsi_get_num_data_lanes_dssdev(dssdev));
+	ddr_clk_post = DIV_ROUND_UP(tclk_post + dssdev->clocks.dsi.ths.trail, 4) + ths_eot + dssdev->clocks.dsi.offset_ddr_clk;
+
+	reconfig_clk_timing = dsi_read_reg(dsidev, DSI_CLK_TIMING);
+	reconfig_clk_timing = FLD_MOD(reconfig_clk_timing, ddr_clk_pre, 15, 8);
+	reconfig_clk_timing = FLD_MOD(reconfig_clk_timing, ddr_clk_post, 7, 0);
+
+	enter_hs_mode_lat = 1 + DIV_ROUND_UP(dssdev->clocks.dsi.tlpx, 4) + DIV_ROUND_UP(dssdev->clocks.dsi.ths.prepare, 4) + DIV_ROUND_UP(dssdev->clocks.dsi.ths.zero + 3, 4);
+	exit_hs_mode_lat = DIV_ROUND_UP(dssdev->clocks.dsi.ths.trail + dssdev->clocks.dsi.ths.exit, 4) + 1 + ths_eot;
+
+	reconfig_vm_timing7 = FLD_VAL(enter_hs_mode_lat, 31, 16) | FLD_VAL(exit_hs_mode_lat, 15, 0);
+
+	r = -EAGAIN;
+
+	for (r = 0; r < 100000; ++r) {
+		u16 ls = dispc_line_status();
+
+		if (ls >= (dssdev->panel.timings.y_res - 1)) {
+			local_irq_disable();
+
+			dsi_write_reg(dsidev, DSI_DSIPHY_CFG0, reconfig_phy_cfg0);
+			dsi_write_reg(dsidev, DSI_DSIPHY_CFG1, reconfig_phy_cfg1);
+			dsi_write_reg(dsidev, DSI_DSIPHY_CFG2, reconfig_phy_cfg2);
+
+			dsi_write_reg(dsidev, DSI_CLK_TIMING, reconfig_clk_timing);
+			dsi_write_reg(dsidev, DSI_VM_TIMING7, reconfig_vm_timing7);
+
+			REG_FLD_MOD(dsidev, DSI_PLL_CONFIGURATION1, dsi->current_cinfo.regm, 20, 9);
+			REG_FLD_MOD(dsidev, DSI_PLL_GO, 1, 0, 0);
+
+			wait_for_bit_change(dsidev, DSI_CTRL, 0, 0);
+			dsi_vc_enable(dsidev, 0, true);
+			dsi_if_enable(dsidev, 1);
+
+			local_irq_enable();
+			r = 0;
+			break;
+		}
+	}
+
+err_rate:
+	mutex_unlock(&dsi->lock);
+	return r;
 }
 
 int omap_dsi_request_vc(struct omap_dss_device *dssdev, int *channel)

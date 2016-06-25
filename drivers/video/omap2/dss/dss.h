@@ -540,6 +540,7 @@ u32 sa_calc_wrap(struct dispc_config *dispc_reg_config, u32 channel_no);
 int dispc_setup_wb(struct writeback_cache_data *wb);
 void dispc_setup_wb_source(enum omap_writeback_source source);
 void dispc_go_wb(void);
+u16 dispc_line_status(void);
 
 /* VENC */
 #ifdef CONFIG_OMAP2_DSS_VENC
