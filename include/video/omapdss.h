@@ -264,6 +264,8 @@ int dsi_vc_dcs_read_1(struct omap_dss_device *dssdev, int channel, u8 dcs_cmd,
 		u8 *data);
 int dsi_vc_dcs_read_2(struct omap_dss_device *dssdev, int channel, u8 dcs_cmd,
 		u8 *data1, u8 *data2);
+int dsi_vc_gen_short_write_nosync(struct omap_dss_device *dssdev, int channel,
+		u8 *data, int len);
 int dsi_vc_gen_write_nosync(struct omap_dss_device *dssdev, int channel,
 		u8 *data, int len);
 int dsi_vc_gen_write(struct omap_dss_device *dssdev, int channel,
@@ -280,6 +282,7 @@ int dsi_vc_gen_read_2(struct omap_dss_device *dssdev, int channel, u16 cmd,
 		u8 *buf, int buflen);
 int dsi_vc_gen_read_1(struct omap_dss_device *dssdev, int channel, u16 cmd,
 		u8 *buf, int buflen);
+int dsi_vc_turn_on_peripheral(struct omap_dss_device *dssdev, int channel);
 void dsi_videomode_panel_preinit(struct omap_dss_device *dssdev);
 
 
@@ -868,6 +871,7 @@ int omap_dsi_update(struct omap_dss_device *dssdev,
 		int channel,
 		u16 x, u16 y, u16 w, u16 h,
 		void (*callback)(int, void *), void *data);
+int omap_dsi_reconfigure_dsi_clocks(struct omap_dss_device *dssdev);
 int omap_dsi_request_vc(struct omap_dss_device *dssdev, int *channel);
 int omap_dsi_set_vc_id(struct omap_dss_device *dssdev, int channel, int vc_id);
 void omap_dsi_release_vc(struct omap_dss_device *dssdev, int channel);
