@@ -92,6 +92,8 @@ struct twl6040_data {
 	unsigned int clk_in;
 	unsigned int sysclk;
 	struct regulator *vddhf_reg;
+	int vddhf_gpo;
+	int lineout_gpio;
 	u16 hs_left_step;
 	u16 hs_right_step;
 	u16 hf_left_step;
@@ -99,6 +101,9 @@ struct twl6040_data {
 	u16 ep_step;
 	struct snd_pcm_hw_constraint_list *sysclk_constraints;
 	struct twl6040_jack_data hs_jack;
+	int hook_gpadc_ch;
+	int hook_ref_vol;
+	int hs_jack_debounce;
 	struct snd_soc_codec *codec;
 	struct workqueue_struct *workqueue;
 	struct delayed_work delayed_work;
@@ -114,6 +119,8 @@ struct twl6040_data {
 	struct delayed_work hf_delayed_work;
 	struct delayed_work ep_delayed_work;
 };
+
+static BLOCKING_NOTIFIER_HEAD(notifier_list);
 
 /*
  * twl6040 register cache & default register settings
@@ -910,25 +917,40 @@ static int twl6040_hf_boost_event(struct snd_soc_dapm_widget *w,
 {
 	struct snd_soc_codec *codec = w->codec;
 	struct twl6040_data *priv = snd_soc_codec_get_drvdata(codec);
-	int ret;
+	int ret, on = SND_SOC_DAPM_EVENT_ON(event);
 
-	if (!priv->vddhf_reg)
-		return 0;
+	if (priv->vddhf_reg) {
+		if (on) {
+			ret = regulator_enable(priv->vddhf_reg);
+			if (ret) {
+				dev_err(codec->dev, "failed to enable "
+					"VDDHF regulator %d\n", ret);
+			}
+		} else {
+			ret = regulator_disable(priv->vddhf_reg);
+			if (ret) {
+				dev_err(codec->dev, "failed to disable "
+					"VDDHF regulator %d\n", ret);
+			}
+		}
+	}
 
-	if (SND_SOC_DAPM_EVENT_ON(event)) {
-		ret = regulator_enable(priv->vddhf_reg);
-		if (ret) {
-			dev_err(codec->dev, "failed to enable "
-				"VDDHF regulator %d\n", ret);
-			return ret;
+	if (priv->vddhf_gpo) {
+		struct twl6040 *twl6040 = codec->control_data;
+		u8 val = twl6040_reg_read(twl6040, TWL6040_REG_GPOCTL);
+		if (val < 0) {
+			dev_err(codec->dev, "failed to read GPOCTL %d\n", ret);
+			return val;
 		}
-	} else {
-		ret = regulator_disable(priv->vddhf_reg);
-		if (ret) {
-			dev_err(codec->dev, "failed to disable "
-				"VDDHF regulator %d\n", ret);
-			return ret;
-		}
+
+		if (on)
+			val |= priv->vddhf_gpo;
+		else
+			val &= ~priv->vddhf_gpo;
+
+		ret = twl6040_reg_write(twl6040, TWL6040_REG_GPOCTL, val);
+		if (ret < 0)
+			dev_err(codec->dev, "failed to write GPOCTL %d\n", ret);
 	}
 
 	return ret;
@@ -966,6 +988,18 @@ void twl6040_hs_jack_detect(struct snd_soc_codec *codec,
 	twl6040_hs_jack_report(codec, hs_jack->jack, hs_jack->report);
 }
 EXPORT_SYMBOL_GPL(twl6040_hs_jack_detect);
+
+int twl6040_register_hook_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(twl6040_register_hook_notifier);
+
+int twl6040_unregister_hook_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(twl6040_unregister_hook_notifier);
 
 static void twl6040_accessory_work(struct work_struct *work)
 {
@@ -1834,6 +1868,8 @@ static int twl6040_probe(struct snd_soc_codec *codec)
 	INIT_DELAYED_WORK(&priv->delayed_work, twl6040_accessory_work);
 
 	mutex_init(&priv->mutex);
+
+	priv->vddhf_gpo = pdata->vddhf_gpo;
 
 	priv->vddhf_reg = regulator_get(codec->dev, "vddhf");
 	if (IS_ERR(priv->vddhf_reg)) {
