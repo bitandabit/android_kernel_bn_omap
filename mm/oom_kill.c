@@ -38,6 +38,28 @@ int sysctl_oom_kill_allocating_task;
 int sysctl_oom_dump_tasks = 1;
 static DEFINE_SPINLOCK(zone_scan_lock);
 
+/*
+ * compare_swap_oom_score_adj() - compare and swap current's oom_score_adj
+ * @old_val: old oom_score_adj for compare
+ * @new_val: new oom_score_adj for swap
+ *
+ * Sets the oom_score_adj value for current to @new_val iff its present value is
+ * @old_val.  Usually used to reinstate a previous value to prevent racing with
+ * userspacing tuning the value in the interim.
+ */
+void compare_swap_oom_score_adj(int old_val, int new_val)
+{
+	struct sighand_struct *sighand = current->sighand;
+
+	spin_lock_irq(&sighand->siglock);
+	if (current->signal->oom_score_adj == old_val) {
+		delete_from_adj_tree(current);
+		current->signal->oom_score_adj = new_val;
+		add_2_adj_tree(current);
+	}
+	spin_unlock_irq(&sighand->siglock);
+}
+
 /**
  * test_set_oom_score_adj() - set current's oom_score_adj and return old value
  * @new_val: new oom_score_adj value
@@ -52,6 +74,7 @@ int test_set_oom_score_adj(int new_val)
 	int old_val;
 
 	spin_lock_irq(&sighand->siglock);
+	delete_from_adj_tree(current);
 	old_val = current->signal->oom_score_adj;
 	if (new_val != old_val) {
 		if (new_val == OOM_SCORE_ADJ_MIN)
@@ -59,6 +82,7 @@ int test_set_oom_score_adj(int new_val)
 		else if (old_val == OOM_SCORE_ADJ_MIN)
 			atomic_dec(&current->mm->oom_disable_count);
 		current->signal->oom_score_adj = new_val;
+		add_2_adj_tree(current);
 	}
 	spin_unlock_irq(&sighand->siglock);
 

@@ -1058,11 +1058,13 @@ static ssize_t oom_adjust_write(struct file *file, const char __user *buf,
 	 * Scale /proc/pid/oom_score_adj appropriately ensuring that a maximum
 	 * value is always attainable.
 	 */
+	delete_from_adj_tree(task);
 	if (task->signal->oom_adj == OOM_ADJUST_MAX)
 		task->signal->oom_score_adj = OOM_SCORE_ADJ_MAX;
 	else
 		task->signal->oom_score_adj = (oom_adjust * OOM_SCORE_ADJ_MAX) /
 								-OOM_DISABLE;
+	add_2_adj_tree(task);
 err_sighand:
 	unlock_task_sighand(task, &flags);
 err_task_lock:
@@ -1186,7 +1188,9 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 		if (task->signal->oom_score_adj == OOM_SCORE_ADJ_MIN)
 			atomic_dec(&task->mm->oom_disable_count);
 	}
+	delete_from_adj_tree(task);
 	task->signal->oom_score_adj = oom_score_adj;
+	add_2_adj_tree(task);
 	if (has_capability_noaudit(current, CAP_SYS_RESOURCE))
 		task->signal->oom_score_adj_min = oom_score_adj;
 	/*
@@ -1889,7 +1893,7 @@ static int proc_fd_info(struct inode *inode, struct path *path, char *info)
 
 			fdt = files_fdtable(files);
 			f_flags = file->f_flags & ~O_CLOEXEC;
-			if (FD_ISSET(fd, fdt->close_on_exec))
+			if (close_on_exec(fd, fdt))
 				f_flags |= O_CLOEXEC;
 
 			if (path) {
