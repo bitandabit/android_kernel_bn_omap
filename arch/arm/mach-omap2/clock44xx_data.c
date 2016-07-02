@@ -4086,8 +4086,6 @@ int __init omap4xxx_clk_init(void)
 {
 	struct omap_clk *c;
 	u32 cpu_clkflg = 0;
-	unsigned long rate = 0;
-	int r = 0;
 
 	if (cpu_is_omap443x()) {
 		cpu_mask = RATE_IN_443X;
@@ -4127,30 +4125,6 @@ int __init omap4xxx_clk_init(void)
 	 * enable other clocks as necessary
 	 */
 	clk_enable_init_clocks();
-
-	/* Calculate current rate for SYS_CLK for ABE and DSS. According to
-	 * TRM: if SYS_CLK is grater than 26MHz, we should devide SYS_CLK by
-	 * 2 for ABE and DSS
-	 */
-	rate = dss_sys_clk.recalc(&dss_sys_clk);
-	if (rate > 26000000) {
-		/* This operation will set divisor=2 for ABE and
-		 * DSS SYS_CLK.
-		 */
-		rate = dss_sys_clk.parent->round_rate(dss_sys_clk.parent,
-								26000000);
-		r = dss_sys_clk.parent->set_rate(dss_sys_clk.parent, rate);
-		if (!r) {
-			/* Refresh rate data in clocks structures */
-			dss_sys_clk.parent->rate =
-				dss_sys_clk.parent->recalc(
-							dss_sys_clk.parent);
-			dss_sys_clk.rate =
-					dss_sys_clk.recalc(&dss_sys_clk);
-		} else
-			printk(KERN_ERR "%s: error: can't change SYS_CLK!\n",
-								__func__);
-	}
 
 	return 0;
 }
