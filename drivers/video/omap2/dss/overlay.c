@@ -723,32 +723,24 @@ EXPORT_SYMBOL(omap_dss_get_overlay);
 
 void omap_dss_overlay_ensure_bw(void)
 {
-	long unsigned total_area, ovl_area;
+	long unsigned total_area;
 	struct omap_overlay *ovl;
 
 	mutex_lock(&overlay_bw_mutex);
 
 	total_area = 0;
 	list_for_each_entry(ovl, &overlay_list, list) {
-		if (ovl->info.enabled) {
-			ovl_area = ovl->info.width * ovl->info.height;
-			if (ovl_area >= 1920*1080) {
-				total_area = OVERLAY_AREA_BW_THRESHOLD + 1;
-				break;
-			} else
-				total_area += ovl_area;
-		}
+		if (ovl->info.enabled)
+			total_area += ovl->info.width * ovl->info.height;
 	}
 
 	if (!overlay_bw_requested &&
 			(total_area > OVERLAY_AREA_BW_THRESHOLD)) {
 		omap_dss_request_high_bandwidth(&dummy_overlay_dev);
-		dss_request_opp(DSS_OPP100);
 		overlay_bw_requested = true;
 	} else if (overlay_bw_requested &&
 			(total_area <= OVERLAY_AREA_BW_THRESHOLD)) {
 		omap_dss_reset_high_bandwidth(&dummy_overlay_dev);
-		dss_request_opp(DSS_OPP50);
 		overlay_bw_requested = false;
 	}
 
