@@ -711,10 +711,6 @@ struct twl4030_usb_data {
 	int		(*phy_power)(struct device *dev, int iD, int on);
 	/* suspend/resume of phy */
 	int		(*phy_suspend)(struct device *dev, int suspend);
-	void		(*charger_detect_start)(void);
-	void		(*charger_detect_stop)(void);
-	int		(*charger_detect_status)(void);
-	int		(*charger_detected)(void);
 };
 
 struct twl4030_ins {
