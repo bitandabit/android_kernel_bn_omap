@@ -174,7 +174,7 @@ static inline void dss_uninitialize_debugfs(void)
  * selecting the higher OPP and L3 frequency, so it's "as fast" as we
  * can go so covers the higest supported resolution.
  */
-#define HIGH_RES_TPUT 600000 /* MiB/s */
+#define HIGH_RES_TPUT 1000000 /* MiB/s */
 void omap_dss_request_high_bandwidth(struct device *dss_dev)
 {
 	if (IS_ERR_OR_NULL(dss_dev))
@@ -467,6 +467,7 @@ static void omap_dss_driver_disable(struct omap_dss_device *dssdev)
 static int omap_dss_driver_enable(struct omap_dss_device *dssdev)
 {
 	int r;
+	omap_dss_request_high_bandwidth(&dssdev->dev);
 	r = dssdev->driver->enable_orig(dssdev);
 	if (!r && dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
 		blocking_notifier_call_chain(&dssdev->state_notifiers,
@@ -477,6 +478,9 @@ static int omap_dss_driver_enable(struct omap_dss_device *dssdev)
 static int omap_dss_driver_suspend(struct omap_dss_device *dssdev)
 {
 	int r = dssdev->driver->suspend_orig(dssdev);
+	/* Use here seems to trigger frequent reboots
+	omap_dss_reset_high_bandwidth(&dssdev->dev);
+	*/
 	return r;
 }
 
