@@ -436,10 +436,6 @@ static struct twl4030_usb_data omap4_usbphy_data = {
 	.phy_exit	= omap4430_phy_exit,
 	.phy_power	= omap4430_phy_power,
 	.phy_suspend	= omap4430_phy_suspend,
-	.charger_detect_start	= omap4430_charger_detect_start,
-	.charger_detect_stop	= omap4430_charger_detect_stop,
-	.charger_detect_status	= omap4430_charger_detect_status,
-	.charger_detected	= omap4430_charger_detected,
 };
 
 static struct twl4030_codec_audio_data twl6040_audio = {

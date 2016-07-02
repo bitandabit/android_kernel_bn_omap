@@ -124,10 +124,6 @@ extern int omap4430_phy_init(struct device *dev);
 extern int omap4430_phy_exit(struct device *dev);
 extern int omap4_charger_detect(void);
 extern int omap4430_phy_suspend(struct device *dev, int suspend);
-extern void omap4430_charger_detect_start(void);
-extern void omap4430_charger_detect_stop(void);
-extern int omap4430_charger_detect_status(void);
-extern int omap4430_charger_detected(void);
 extern int omap4430_usbhs_update_sar(void);
 #endif
 
