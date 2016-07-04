@@ -1567,6 +1567,11 @@ int dsi_pll_set_clock_div(struct platform_device *dsidev,
 	/* DSI_PLL_AUTOMODE = manual */
 	REG_FLD_MOD(dsidev, DSI_PLL_CONTROL, 0, 0, 0);
 
+	l = dsi_read_reg(dsidev, DSI_PLL_CONTROL);
+	l |= FLD_MOD(l, 1, 1, 1);
+	l |= FLD_MOD(l, 1, 2, 2);
+	dsi_write_reg(dsidev, DSI_PLL_CONTROL, l);
+
 	l = dsi_read_reg(dsidev, DSI_PLL_CONFIGURATION1);
 	l = FLD_MOD(l, 1, 0, 0);		/* DSI_PLL_STOPMODE */
 	/* DSI_PLL_REGN */
@@ -2253,6 +2258,7 @@ static void dsi_cio_timings(struct omap_dss_device *dssdev)
 	r = FLD_MOD(r, tlpx_half, 22, 16);
 	r = FLD_MOD(r, tclk_trail, 15, 8);
 	r = FLD_MOD(r, tclk_zero, 7, 0);
+	r = FLD_MOD(r, 0, 31, 29);
 	dsi_write_reg(dsidev, DSI_DSIPHY_CFG1, r);
 
 	r = dsi_read_reg(dsidev, DSI_DSIPHY_CFG2);
@@ -3104,7 +3110,7 @@ static int dsi_vc_send_long(struct platform_device *dsidev, int channel,
 	}
 
 	/* wait for IRQ for long packet transmission confirmation */
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < 100000; i++) {
 		u32 val;
 		val = dsi_read_reg(dsidev, DSI_VC_IRQSTATUS(channel));
 		if (val & 0x4) {
@@ -3898,6 +3904,8 @@ static int dsi_video_proto_config(struct omap_dss_device *dssdev)
 	}
 
 	r = dsi_read_reg(dsidev, DSI_CTRL);
+	r = FLD_MOD(r, 1, 1, 1);	/* CS_RX_EN */
+	r = FLD_MOD(r, 1, 2, 2);	/* ECC_RX_EN */
 	r = FLD_MOD(r, 1, 3, 3);	/* TX_FIFO_ARBITRATION */
 	r = FLD_MOD(r, 1, 4, 4);	/* VP_CLK_RATIO, always 1, see errata*/
 	r = FLD_MOD(r, buswidth, 7, 6);	/* VP_DATA_BUS_WIDTH */
@@ -4014,8 +4022,8 @@ int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type)
 		dssdev->manager->enable(dssdev->manager);
 	} else {
 		dsi_if_enable(dsidev, false);
-		dsi_vc_enable(dsidev, 1, false);
 		dsi_vc_enable(dsidev, 0, false);
+		dsi_vc_enable(dsidev, 1, false);
 
 		/* FORCE_TX_STOP_MODE_IO */
 		/* REG_FLD_MOD(dsidev, DSI_TIMING1, 1, 15, 15); */
@@ -4037,6 +4045,7 @@ int dsi_video_mode_enable(struct omap_dss_device *dssdev, u8 data_type)
 		dsi_write_reg(dsidev, DSI_VC_LONG_PACKET_HEADER(0), header);
 
 		dsi_vc_enable(dsidev, 0, true);
+		dsi_vc_enable(dsidev, 1, true);
 		dsi_if_enable(dsidev, true);
 
 		msleep(2);
@@ -4769,11 +4778,11 @@ static void dsi_display_uninit_dsi(struct omap_dss_device *dssdev,
 		dsi_enter_ulps(dsidev);
 
 	/* disable interface */
-	dsi_if_enable(dsidev, 0);
 	dsi_vc_enable(dsidev, 0, 0);
 	dsi_vc_enable(dsidev, 1, 0);
 	dsi_vc_enable(dsidev, 2, 0);
 	dsi_vc_enable(dsidev, 3, 0);
+	dsi_if_enable(dsidev, 0);
 
 	dss_select_dispc_clk_source(OMAP_DSS_CLK_SRC_FCK);
 	dss_select_dsi_clk_source(dsi_module, OMAP_DSS_CLK_SRC_FCK);
@@ -4896,8 +4905,8 @@ void omapdss_dsi_display_disable(struct omap_dss_device *dssdev,
 	dss_plat_data->device_scale(&dssdev->dev,
 			omap_hwmod_name_get_dev("dss_dispc"), 0);
 
-	dsi_runtime_put(dsidev);
 	dsi_enable_pll_clock(dsidev, 0);
+	dsi_runtime_put(dsidev);
 
 	omap_dss_stop_device(dssdev);
 
