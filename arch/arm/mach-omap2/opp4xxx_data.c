@@ -370,11 +370,11 @@ static struct omap_opp_def __initdata omap446x_opp_def_list[] = {
  * Structures containing OMAP4470 voltage supported and various
  * voltage dependent data for each VDD.
  */
-#define OMAP4470_VDD_MPU_OPP50_UV		1037000
+#define OMAP4470_VDD_MPU_OPP50_UV		1025000
 #define OMAP4470_VDD_MPU_OPP100_UV		1200000
 #define OMAP4470_VDD_MPU_OPPTURBO_UV		1312000
 #define OMAP4470_VDD_MPU_OPPNITRO_UV		1375000
-#define OMAP4470_VDD_MPU_OPPNITROSB_UV		1387000
+#define OMAP4470_VDD_MPU_OPPNITROSB_UV		1380000
 
 struct omap_volt_data omap447x_vdd_mpu_volt_data[] = {
 	VOLT_DATA_DEFINE(OMAP4470_VDD_MPU_OPP50_UV, 0, OMAP44XX_CONTROL_FUSE_MPU_OPP50, 0xf4, 0x15, OMAP_ABB_NOMINAL_OPP),
@@ -385,11 +385,11 @@ struct omap_volt_data omap447x_vdd_mpu_volt_data[] = {
 	VOLT_DATA_DEFINE(0, 0, 0, 0, 0, 0),
 };
 
-#define OMAP4470_VDD_IVA_OPP50_UV		 962000
+#define OMAP4470_VDD_IVA_OPP50_UV		 950000
 #define OMAP4470_VDD_IVA_OPP100_UV		1137000
 #define OMAP4470_VDD_IVA_OPPTURBO_UV		1287000
 #define OMAP4470_VDD_IVA_OPPNITRO_UV		1375000
-#define OMAP4470_VDD_IVA_OPPNITROSB_UV		1380000
+#define OMAP4470_VDD_IVA_OPPNITROSB_UV		1376000
 
 struct omap_volt_data omap447x_vdd_iva_volt_data[] = {
 	VOLT_DATA_DEFINE(OMAP4470_VDD_IVA_OPP50_UV, 0, OMAP44XX_CONTROL_FUSE_IVA_OPP50, 0xf4, 0x0D, OMAP_ABB_NOMINAL_OPP),
@@ -408,10 +408,10 @@ struct omap_volt_data omap447x_vdd_iva_volt_data[] = {
  * - in High set OPP100H voltage is lower than requested OPP100,
  *   so next higher OPP will be used which is OPP100OV.
  */
-#define OMAP4470_VDD_CORE_OPP50_UV		 980000
-#define OMAP4470_VDD_CORE_OPP100H_UV		1125000
-#define OMAP4470_VDD_CORE_OPP100_UV		1126000
-#define OMAP4470_VDD_CORE_OPP100_OV_UV		1190000
+#define OMAP4470_VDD_CORE_OPP50_UV		 962000
+#define OMAP4470_VDD_CORE_OPP100H_UV		1124000
+#define OMAP4470_VDD_CORE_OPP100_UV		1125000
+#define OMAP4470_VDD_CORE_OPP100_OV_UV		1250000
 
 struct omap_volt_data omap447x_vdd_core_volt_data[] = {
 	VOLT_DATA_DEFINE(OMAP4470_VDD_CORE_OPP50_UV, 0, OMAP44XX_CONTROL_FUSE_CORE_OPP50, 0xf4, 0x0D, OMAP_ABB_NONE),
