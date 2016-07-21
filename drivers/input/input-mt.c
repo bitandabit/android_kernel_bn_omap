@@ -25,8 +25,7 @@
  * May be called repeatedly. Returns -EINVAL if attempting to
  * reinitialize with a different number of slots.
  */
-int input_mt_init_slots(struct input_dev *dev, unsigned int num_slots,
-			unsigned int flags)
+int input_mt_init_slots(struct input_dev *dev, unsigned int num_slots)
 {
 	struct input_mt *mt = dev->mt;
 	int i;
@@ -41,7 +40,6 @@ int input_mt_init_slots(struct input_dev *dev, unsigned int num_slots,
 		return -ENOMEM;
 
 	mt->num_slots = num_slots;
-	mt->flags = flags;
 	input_set_abs_params(dev, ABS_MT_SLOT, 0, num_slots - 1, 0, 0);
 	input_set_abs_params(dev, ABS_MT_TRACKING_ID, 0, TRKID_MAX, 0, 0);
 
