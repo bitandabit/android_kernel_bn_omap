@@ -1233,7 +1233,11 @@ struct ff_effect {
  *	software autorepeat
  * @timer: timer for software autorepeat
  * @rep: current values for autorepeat parameters (delay, rate)
- * @mt: pointer to multitouch state
+ * @mt: pointer to array of struct input_mt_slot holding current values
+ *	of tracked contacts
+ * @mtsize: number of MT slots the device uses
+ * @slot: MT slot currently being transmitted
+ * @trkid: stores MT tracking ID for the current contact
  * @absinfo: array of &struct input_absinfo elements holding information
  *	about absolute axes (current value, min, max, flat, fuzz,
  *	resolution)
@@ -1313,7 +1317,10 @@ struct input_dev {
 
 	int rep[REP_CNT];
 
-	struct input_mt *mt;
+	struct input_mt_slot *mt;
+	int mtsize;
+	int slot;
+	int trkid;
 
 	struct input_absinfo *absinfo;
 
