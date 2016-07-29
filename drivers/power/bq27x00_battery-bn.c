@@ -64,17 +64,12 @@
 
 #define BQ27000_REG_RSOC		0x0B	/* Relative State-of-Charge */
 #define BQ27000_REG_ILMD		0x76	/* Initial last measured discharge */
-#define BQ27000_FLAG_EDVF		BIT(0) /* Final End-of-Discharge-Voltage flag */
-#define BQ27000_FLAG_EDV1		BIT(1) /* First End-of-Discharge-Voltage flag */
-#define BQ27000_FLAG_CI			BIT(4) /* Capacity Inaccurate flag */
 #define BQ27000_FLAG_FC			BIT(5)
 #define BQ27000_FLAG_CHGS		BIT(7) /* Charge state flag */
 
 #define BQ27500_REG_SOC			0x2C
 #define BQ27500_REG_DCAP		0x3C	/* Design capacity */
 #define BQ27500_FLAG_DSC		BIT(0)
-#define BQ27500_FLAG_SOCF		BIT(1) /* State-of-Charge threshold final */
-#define BQ27500_FLAG_SOC1		BIT(2) /* State-of-Charge threshold 1 */
 #define BQ27500_FLAG_BAT_DET		BIT(3)
 #define BQ27500_FLAG_FC			BIT(9)
 #define BQ27500_FLAG_XCHG		BIT(10)
@@ -191,14 +186,8 @@ static bool g_pause_i2c = false;
 
 static int bq27x00_read_control(u16 reg, int *rt_value,
 				struct bq27x00_device_info *di);
-static int bq27x00_register_cached_read(struct bq27x00_device_info *di, u8 reg,
-				       bool single);
-static int bq27x00_register_bulk_cache(struct bq27x00_device_info *di);
 static void bq27x00_hw_reset(struct bq27x00_device_info *di);
 static void bq27x00_event_work_func(struct work_struct *work);
-static int usb_xceiv_events_callback(struct notifier_block *nb,
-				unsigned long event,
-				void *_data);
 
 static int need_to_shutdown = 0;
 static int is_chargermode = 0;
@@ -280,20 +269,8 @@ static struct device_attribute dev_attr_hw_reset = {
  * Common code for BQ27x00 devices
  */
 
-static inline int bq27x00_register_uncached_read(struct bq27x00_device_info *di, u8 reg,
-					bool single)
-{
-	return di->bus.read(di, reg, single);
-}
-
 static inline int bq27x00_read(struct bq27x00_device_info *di, u8 reg,
 			       bool single)
-{
-	return bq27x00_register_cached_read(di, reg, single);
-}
-
-static int bq27x00_register_cached_read(struct bq27x00_device_info *di, u8 reg,
-				       bool single)
 {
 	int res = 0;
 	struct i2c_client *const client = to_i2c_client(di->dev);
@@ -479,9 +456,9 @@ static int bq27x00_battery_read_ilmd(struct bq27x00_device_info *di)
 	int ilmd;
 
 	if (di->chip == BQ27500)
-		ilmd = bq27x00_register_uncached_read(di, BQ27500_REG_DCAP, false);
+		ilmd = di->bus.read(di, BQ27500_REG_DCAP, false);
 	else
-		ilmd = bq27x00_register_uncached_read(di, BQ27000_REG_ILMD, true);
+		ilmd = di->bus.read(di, BQ27000_REG_ILMD, true);
 
 	if (ilmd < 0) {
 		dev_dbg(di->dev, "error reading initial last measured discharge\n");
@@ -569,12 +546,9 @@ static void bq27x00_update(struct bq27x00_device_info *di)
 		 */
 		if(unlikely(need_to_shutdown))
 			cache.capacity = 1;
-		cache.time_to_empty =
-		    bq27x00_battery_read_time(di, BQ27x00_REG_TTE);
-		cache.time_to_empty_avg =
-		    bq27x00_battery_read_time(di, BQ27x00_REG_TTECP);
-		cache.time_to_full =
-		    bq27x00_battery_read_time(di, BQ27x00_REG_TTF);
+		cache.time_to_empty = bq27x00_battery_read_time(di, BQ27x00_REG_TTE);
+		cache.time_to_empty_avg = bq27x00_battery_read_time(di, BQ27x00_REG_TTECP);
+		cache.time_to_full = bq27x00_battery_read_time(di, BQ27x00_REG_TTF);
 		cache.charge_full = bq27x00_battery_read_lmd(di);
 		cache.cycle_count = bq27x00_battery_read_cyct(di);
 		cache.temperature = bq27x00_battery_read_temperature(di);
@@ -692,7 +666,7 @@ static int bq27x00_battery_voltage(struct bq27x00_device_info *di,
 	int volt;
 
 	volt = (cached ? bq27x00_read(di, BQ27x00_REG_VOLT, false) :
-			bq27x00_register_uncached_read(di, BQ27x00_REG_VOLT, false));
+			di->bus.read(di, BQ27x00_REG_VOLT, false));
 	if (volt < 0)
 		return volt;
 
@@ -1129,7 +1103,7 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 {
 	char *name;
 	struct bq27x00_device_info *di;
-	struct bq27x00_platform_data *pdata = NULL;
+	struct bq27000_platform_data *pdata = NULL;
 	int num;
 	int retval = 0;
 
@@ -1364,7 +1338,7 @@ static int bq27000_read_platform(struct bq27x00_device_info *di, u8 reg,
 				 bool single)
 {
 	struct device *dev = di->dev;
-	struct bq27x00_platform_data *pdata = dev->platform_data;
+	struct bq27000_platform_data *pdata = dev->platform_data;
 	unsigned int timeout = 3;
 	int upper, lower;
 	int temp;
@@ -1398,7 +1372,7 @@ static int bq27000_read_platform(struct bq27x00_device_info *di, u8 reg,
 static int __devinit bq27000_battery_probe(struct platform_device *pdev)
 {
 	struct bq27x00_device_info *di;
-	struct bq27x00_platform_data *pdata = pdev->dev.platform_data;
+	struct bq27000_platform_data *pdata = pdev->dev.platform_data;
 	int ret;
 	pr_debug("bq27x00 battery probe platform\n");
 

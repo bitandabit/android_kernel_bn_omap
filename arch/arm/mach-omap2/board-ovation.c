@@ -212,7 +212,7 @@ static void omap4_audio_conf(void)
 		OMAP_PIN_INPUT_PULLUP);
 }
 
-static struct bq27x00_platform_data __initdata ovation_bq27520_platform_data = {
+static struct bq27000_platform_data __initdata ovation_bq27520_platform_data = {
 	.gpio_ce = 113,
 	.gpio_soc_int = 176,
 	.gpio_bat_low = 42,
