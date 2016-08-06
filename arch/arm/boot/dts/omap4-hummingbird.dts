@@ -80,6 +80,11 @@
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x0fa, PIN_OUTPUT | MUX_MODE3)			// abe_mcbsp2_dx.gpio_112
 			OMAP4_IOPAD(0x1a0, PIN_INPUT_PULLUP | MUX_MODE0)	// sys_nirq2.sys_nirq2
+
+			OMAP4_IOPAD(0x0d2, PIN_INPUT | PIN_INPUT_PULLDOWN | MUX_MODE2)	// usbb1_ulpitll_dat4.abe_mcbsp3_dr
+			OMAP4_IOPAD(0x0d4, PIN_OUTPUT | PIN_OFF_OUTPUT_LOW | MUX_MODE2)	// usbb1_ulpitll_dat5.abe_mcbsp3_dx
+			OMAP4_IOPAD(0x0d6, PIN_INPUT | PIN_OFF_INPUT_PULLDOWN | MUX_MODE2)// usbb1_ulpitll_dat6.abe_mcbsp3_clkx
+			OMAP4_IOPAD(0x0d8, PIN_INPUT | PIN_OFF_INPUT_PULLDOWN | MUX_MODE2)// usbb1_ulpitll_dat7.abe_mcbsp3_fsx
 		>;
 	};
 
@@ -130,16 +135,13 @@
 		reg = <0x48>;
 		// SPI = 0, IRQ# = 7, 4 = active high level-sensitive
 		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;    // IRQ_SYS_1N cascaded to gic
-
-		twl_power: power {
-			compatible = "ti,twl6030-power";
-			ti,system-power-controller;
-		};
 	};
 
 	twl6040: twl@4b {
 		compatible = "ti,twl6040";
 		reg = <0x4b>;
+
+		#gpio-cells = <1>;	// provides GPO lines
 
 		pinctrl-names = "default";
 		pinctrl-0 = <&twl6040_pins>;
@@ -151,11 +153,78 @@
 		vio-supply = <&v1v8>;
 		v2v1-supply = <&v2v1>;
 		enable-active-high;
+
+		//clocks = <&clk32kgaudio>;
+		//clock-names = "clk32k";
+		//status = "disabled";
 	};
 };
 
 #include "twl6030.dtsi"
 #include "twl6030_omap4.dtsi"
+
+&vusim {
+	//status = "disabled";
+	//compatible = "ti,twl6032-ldo7";
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	regulator-always-on;
+	regulator-boot-on;
+};
+
+&vdac {
+	//status = "disabled";
+	//compatible = "ti,twl6032-ldoln";
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	regulator-always-on;
+};
+
+&vaux2 {
+	//status = "disabled";
+	//compatible = "ti,twl6032-ldo4";
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+};
+
+&vaux3 {
+	//status = "disabled";
+	//compatible = "ti,twl6032-ldo3";
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	regulator-boot-on;
+};
+
+&twl {
+	ldo3: regulator-ldo3 {
+		compatible = "ti,twl6032-ldo3";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+	};
+
+	ldo4: regulator-ldo4 {
+		compatible = "ti,twl6032-ldo4";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	ldo7: regulator-ldo7 {
+		compatible = "ti,twl6032-ldo7";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	ldoln: regulator-ldoln {
+		compatible = "ti,twl6032-ldoln";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		ldoln-supply = <&v2v1>;
+		regulator-always-on;
+	};
+};
 
 &i2c2 {
 	status = "disabled";
@@ -178,9 +247,9 @@
 		reg = <0x6b>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&bq24190_pins>;
-		//interrupt-parent = <&gpio5>;
-		//interrupts = <14 IRQ_TYPE_EDGE_FALLING>; // gpio 142
-		//status = "disabled";
+		interrupt-parent = <&gpio5>;
+		interrupts = <14 IRQ_TYPE_EDGE_FALLING>; // gpio 142
+		status = "disabled";
 	};
 };
 
@@ -252,10 +321,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart4_pins>;
 	ti,no_idle_on_suspend;
-};
-
-&mcbsp3 {
-	status = "disabled";
 };
 
 &twl_usb_comparator {
