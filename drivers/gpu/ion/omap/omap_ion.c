@@ -32,6 +32,9 @@ static int num_heaps;
 static struct ion_heap **heaps;
 static struct ion_heap *tiler_heap;
 static struct ion_heap *nonsecure_tiler_heap;
+#ifdef CONFIG_USE_AMAZON_DUCATI
+static struct ion_platform_data *pdata;
+#endif
 
 int omap_ion_tiler_alloc(struct ion_client *client,
 			 struct omap_ion_tiler_alloc_data *data)
@@ -83,9 +86,15 @@ static long omap_ion_ioctl(struct ion_client *client, unsigned int cmd,
 
 static int omap_ion_probe(struct platform_device *pdev)
 {
+#ifndef CONFIG_USE_AMAZON_DUCATI
 	struct ion_platform_data *pdata = pdev->dev.platform_data;
+#endif
 	int err;
 	int i;
+
+#ifdef CONFIG_USE_AMAZON_DUCATI
+	pdata = pdev->dev.platform_data;
+#endif
 
 	num_heaps = pdata->nr;
 
@@ -238,6 +247,22 @@ err:
 }
 EXPORT_SYMBOL(omap_ion_share_fd_to_handles);
 
+#ifdef CONFIG_USE_AMAZON_DUCATI
+struct ion_platform_heap *omap_ion_get2d_heap(void)
+{
+	int i;
+	if (!pdata)
+		return NULL;
+	for (i = 0; i < num_heaps; i++) {
+		struct ion_platform_heap *heap_data = &pdata->heaps[i];
+		if (!strcmp(heap_data->name,"tiler")) {
+				return heap_data;
+		}
+	}
+	return NULL;
+}
+EXPORT_SYMBOL(omap_ion_get2d_heap);
+#endif
 
 static struct platform_driver ion_driver = {
 	.probe = omap_ion_probe,
