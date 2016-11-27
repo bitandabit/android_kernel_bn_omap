@@ -75,6 +75,8 @@ struct ion_platform_heap * omap_ion_get2d_heap(void);
 int omap_tiler_vinfo(struct ion_client *client,
 			struct ion_handle *handle, unsigned int *vstride,
 			unsigned int *vsize);
+
+extern struct ion_device *omap_ion_device;
 #endif /* __KERNEL__ */
 
 /* additional heaps used only on omap */
