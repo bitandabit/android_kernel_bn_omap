@@ -57,8 +57,8 @@ static struct ion_platform_heap omap4_ion_heaps[] = {
 		.name = "nonsecure_tiler",
 	},
 	{
-		.type = ION_HEAP_TYPE_SYSTEM,
-		.id = ION_HEAP_TYPE_SYSTEM,
+		.type = ION_HEAP_TYPE_SYSTEM_CONTIG,
+		.id = ION_HEAP_TYPE_SYSTEM_CONTIG,
 		.name = "system",
 	},
 	{
