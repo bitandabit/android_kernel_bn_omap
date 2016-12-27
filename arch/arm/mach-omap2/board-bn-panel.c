@@ -438,11 +438,25 @@ static struct dsscomp_platform_data dsscomp_config = {
 };
 
 static struct sgx_omaplfb_config omaplfb_config[] = {
+#ifdef CONFIG_MACH_OMAP_OVATION
 	{
-		.vram_buffers = machine_is_omap_hummingbird() ? 0 : 2,
-		.tiler2d_buffers = machine_is_omap_ovation() ? 0 : 2,
+		.vram_buffers = 2,
+		.tiler2d_buffers = 0,
 		.swap_chain_length = 2,
 	},
+#endif
+	{
+		.vram_buffers = 0,
+		.tiler2d_buffers = 2,
+		.swap_chain_length = 2,
+	},
+#ifdef CONFIG_MACH_OMAP_HUMMINGBIRD
+	{
+		.vram_buffers = 2,
+		.tiler2d_buffers = 0,
+		.swap_chain_length = 2,
+	},
+#endif
 #if defined(CONFIG_OMAP4_DSS_HDMI)
 	{
 		.vram_buffers = 2,
