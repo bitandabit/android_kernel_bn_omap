@@ -19,7 +19,6 @@
 #include <linux/swap.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>
-#include <linux/uio.h>
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
