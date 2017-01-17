@@ -37,7 +37,11 @@ static int f2fs_vm_page_mkwrite(struct vm_area_struct *vma,
 
 	f2fs_balance_fs(sbi);
 
-	sb_start_pagefault(inode->i_sb);
+	/*
+	 * This check is racy but catches the common case. We rely on
+	 * __block_page_mkwrite() to do a reliable check.
+	 */
+	vfs_check_frozen(inode->i_sb, SB_FREEZE_WRITE);
 
 	mutex_lock_op(sbi, DATA_NEW);
 
@@ -93,7 +97,6 @@ static int f2fs_vm_page_mkwrite(struct vm_area_struct *vma,
 
 	file_update_time(vma->vm_file);
 out:
-	sb_end_pagefault(inode->i_sb);
 	return block_page_mkwrite_return(err);
 }
 
