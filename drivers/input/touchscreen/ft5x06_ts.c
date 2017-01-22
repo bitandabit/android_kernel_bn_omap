@@ -375,6 +375,7 @@ static int ft5x06_ts_suspend(struct device *dev)
 		txbuf[0] = FT5X06_REG_PMODE;
 		txbuf[1] = FT5X06_PMODE_HIBERNATE;
 		ft5x06_i2c_write(data->client, txbuf, sizeof(txbuf));
+		gpio_set_value(data->pdata->reset_gpio, 0);
 	}
 
 	return 0;
@@ -385,9 +386,9 @@ static int ft5x06_ts_resume(struct device *dev)
 	struct ft5x06_ts_data *data = dev_get_drvdata(dev);
 
 	if (gpio_is_valid(data->pdata->reset_gpio)) {
-		gpio_set_value_cansleep(data->pdata->reset_gpio, 0);
+		gpio_set_value(data->pdata->reset_gpio, 0);
 		msleep(FT_RESET_DLY);
-		gpio_set_value_cansleep(data->pdata->reset_gpio, 1);
+		gpio_set_value(data->pdata->reset_gpio, 1);
 	}
 	enable_irq(data->client->irq);
 
@@ -658,7 +659,7 @@ static int ft5x06_ts_probe(struct i2c_client *client,
 		}
 
 		msleep(FT_RESET_DLY);
-		gpio_set_value_cansleep(data->pdata->reset_gpio, 1);
+		gpio_set_value(data->pdata->reset_gpio, 1);
 	}
 
 	/* make sure CTP already finish startup process */
