@@ -91,7 +91,6 @@ static void __init omap_bn_init_early(void)
 {
 	struct omap_hwmod *oh;
 	int i;
-	char uart[5];
 	char const * const hwmods[] = {
 		[0] = "gpio1",
 		[1] = "gpio3",
@@ -110,15 +109,17 @@ static void __init omap_bn_init_early(void)
 			printk("%s hwmod not found\n", hwmods[i]);
 	}
 
-	for (i = 0; i < 4; i++) {
-		sprintf(uart, "uart%d", i+1);
-		oh = omap_hwmod_lookup(uart);
-		if (likely(oh)) {
-			oh->flags |= HWMOD_SWSUP_SIDLE;
-			printk("%s has SWSUP_SIDLE\n", uart);
-		} else
-			printk("%s hwmod not found\n", uart);
-	}
+	oh = omap_hwmod_lookup("uart3");
+	if (likely(oh)) {
+		oh->flags = 0;
+	} else
+		printk("uart3 hwmod not found\n");
+
+	oh = omap_hwmod_lookup("uart4");
+	if (likely(oh)) {
+		oh->flags = HWMOD_SWSUP_SIDLE;
+	} else
+		printk("uart4 hwmod not found\n");
 }
 
 static struct omap_musb_board_data musb_board_data = {
