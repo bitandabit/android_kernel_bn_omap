@@ -109,6 +109,7 @@ static void __init omap_bn_init_early(void)
 			printk("%s hwmod not found\n", hwmods[i]);
 	}
 
+#if 0
 	oh = omap_hwmod_lookup("uart3");
 	if (likely(oh)) {
 		oh->flags = 0;
@@ -120,6 +121,7 @@ static void __init omap_bn_init_early(void)
 		oh->flags = HWMOD_SWSUP_SIDLE;
 	} else
 		printk("uart4 hwmod not found\n");
+#endif
 }
 
 static struct omap_musb_board_data musb_board_data = {
